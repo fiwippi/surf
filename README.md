@@ -37,7 +37,7 @@ SPOTIFY_SECRET=secret
 ```
 
 ## Notice
-This tool is meant to be used to download CC0 licenced content, we do not support nor recommend using it for illegal activities.
+This tool is meant to be used to download CC0 licenced content, it is not supported nor recommended using it for illegal activities.
 
 ## License
 `BSD-3-Clause`
