@@ -1,0 +1,9 @@
+version: "3"
+
+services:
+  surf:
+    container_name: surf
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
