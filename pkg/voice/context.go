@@ -2,6 +2,7 @@ package voice
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
@@ -35,7 +36,7 @@ func CreateContext(s *state.State, e *gateway.InteractionCreateEvent, ci *discor
 		GID:     e.GuildID,
 		Voice:   vs.ChannelID,
 		Text:    e.ChannelID,
-		User:    e.User,
+		User:    e.Sender(),
 		Event:   e,
 		options: ci.Options,
 	}, nil
@@ -53,4 +54,15 @@ func (ctx *SessionContext) SecondArg() string {
 		panic(errors.New("not enough args for second arg"))
 	}
 	return ctx.options[1].String()
+}
+
+func (ctx *SessionContext) Args() string {
+	if len(ctx.options) > 0 {
+		args := make([]string, 0)
+		for _, o := range ctx.options {
+			args = append(args, o.String())
+		}
+		return strings.Join(args, ",")
+	}
+	return ""
 }

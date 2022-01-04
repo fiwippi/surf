@@ -29,9 +29,9 @@ var commands = []api.CreateCommandData{
 		Description: "Play a track",
 		Options: []discord.CommandOption{
 			&discord.StringOption{
-				OptionName:   "track",
-				Description:  "Search term or URL link to track",
-				Required:     true,
+				OptionName:  "track",
+				Description: "Search term or URL link to track",
+				Required:    true,
 			},
 		},
 	},
@@ -52,9 +52,9 @@ var commands = []api.CreateCommandData{
 		Description: "Seek to a specific time in the track",
 		Options: []discord.CommandOption{
 			&discord.StringOption{
-				OptionName:   "time",
-				Description:  "Time to seek to",
-				Required:     true,
+				OptionName:  "time",
+				Description: "Time to seek to",
+				Required:    true,
 			},
 		},
 	},
@@ -79,9 +79,9 @@ var commands = []api.CreateCommandData{
 		Description: "Remove a track from the queue",
 		Options: []discord.CommandOption{
 			&discord.IntegerOption{
-				OptionName:   "position",
-				Description:  "Queue position of track",
-				Required:     true,
+				OptionName:  "position",
+				Description: "Queue position of track",
+				Required:    true,
 			},
 		},
 	},
@@ -90,14 +90,14 @@ var commands = []api.CreateCommandData{
 		Description: "Moves a track to a different position in the queue",
 		Options: []discord.CommandOption{
 			&discord.IntegerOption{
-				OptionName:   "from",
-				Description:  "Queue position of track",
-				Required:     true,
+				OptionName:  "from",
+				Description: "Queue position of track",
+				Required:    true,
 			},
 			&discord.IntegerOption{
-				OptionName:   "to",
-				Description:  "Queue position to move track to",
-				Required:     true,
+				OptionName:  "to",
+				Description: "Queue position to move track to",
+				Required:    true,
 			},
 		},
 	},
@@ -144,6 +144,8 @@ func interactionCreateEvent(c *client) interface{} {
 		}
 
 		// Call the command
+		log.Info().Str("user", ctx.User.Username).Str("command", ci.Name).
+			Str("args", ctx.Args()).Msg("interaction")
 		args := []reflect.Value{reflect.ValueOf(ctx)}
 		v.Call(args)
 	}

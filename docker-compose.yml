@@ -2,8 +2,9 @@ version: "3"
 
 services:
   surf:
-    container_name: surf
     build: .
+    network_mode: "host"
+    container_name: surf
     restart: unless-stopped
     env_file:
       - .env

@@ -30,7 +30,7 @@ type search struct {
 
 func NewClient() *Client {
 	c := &Client{
-		rl:     rate.NewLimiter(rate.Every(time.Second/time.Duration(MaxRequestsPerSec)), 1),
+		rl: rate.NewLimiter(rate.Every(time.Second/time.Duration(MaxRequestsPerSec)), 1),
 	}
 
 	s, err := newSpotifyClient()
@@ -140,7 +140,7 @@ func (c *Client) searchComplex(ctx context.Context, st spotifyTrack) (Track, err
 
 		containsArtist := strings.Contains(track.Artist, st.Artist)
 		containsTitle := strings.Contains(track.Title, st.Title)
-		if containsArtist && containsTitle  {
+		if containsArtist && containsTitle {
 			filtered = append(filtered, search{
 				T:    track,
 				Diff: diff,
@@ -159,7 +159,7 @@ func (c *Client) searchComplex(ctx context.Context, st spotifyTrack) (Track, err
 }
 
 func (c *Client) search(ctx context.Context, text string) (Track, error) {
-	buf, err := c.ytdlpMetadata(ctx, "ytsearch1:" + text, false)
+	buf, err := c.ytdlpMetadata(ctx, "ytsearch1:"+text, false)
 	if err != nil {
 		return Track{}, err
 	}
@@ -208,18 +208,15 @@ func (c *Client) ytdlpMetadata(ctx context.Context, query string, unflatten bool
 	if strings.Contains(query, "soundcloud.com") || unflatten {
 		// For soundcloud we need to remove --flat-playlist otherwise
 		// we don't get the full playlist data
-		args[len(args) - 1] = query
+		args[len(args)-1] = query
 	} else {
 		args = append(args, query)
 	}
 
 	dl := exec.CommandContext(ctx, "yt-dlp", args...)
 	buf, err := dl.Output()
-	if err != nil && len(buf) == 0 {
-		// Having some of the buf filled means we managed to retrieve
-		// some playlist data so we only exit on empty buffer
+	if err != nil {
 		return nil, err
 	}
 	return buf, nil
 }
-

@@ -15,14 +15,30 @@ import (
 )
 
 type spotifyClient struct {
-	rl     *rate.Limiter
-	client *spotify.Client
+	id, secret string
+	rl         *rate.Limiter
+	client     *spotify.Client
 }
 
 type spotifyTrack struct {
 	Artist   string
 	Title    string
 	Duration time.Duration
+}
+
+func createClient(id, secret string) (*spotify.Client, error) {
+	ctx := context.Background()
+	config := &clientcredentials.Config{
+		ClientID:     id,
+		ClientSecret: secret,
+		TokenURL:     spotifyauth.TokenURL,
+	}
+	token, err := config.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	httpClient := spotifyauth.New().Client(ctx, token)
+	return spotify.New(httpClient), err
 }
 
 func newSpotifyClient() (*spotifyClient, error) {
@@ -35,22 +51,15 @@ func newSpotifyClient() (*spotifyClient, error) {
 		return nil, errors.New("no $SPOTIFY_SECRET given")
 	}
 
-	ctx := context.Background()
-	config := &clientcredentials.Config{
-		ClientID:     id,
-		ClientSecret: secret,
-		TokenURL:     spotifyauth.TokenURL,
-	}
-	token, err := config.Token(ctx)
+	c, err := createClient(id, secret)
 	if err != nil {
 		return nil, err
 	}
 
-	httpClient := spotifyauth.New().Client(ctx, token)
-	client := spotify.New(httpClient)
-
 	return &spotifyClient{
-		client: client,
+		client: c,
+		id:     id,
+		secret: secret,
 		rl:     rate.NewLimiter(rate.Every(time.Second/time.Duration(MaxRequestsPerSec)), 1),
 	}, nil
 }
@@ -64,6 +73,19 @@ func (s *spotifyClient) Download(ctx context.Context, link string) ([]spotifyTra
 	err = s.rl.Wait(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Recreate the client if the token has expired
+	token, err := s.client.Token()
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid() {
+		c, err := createClient(s.id, s.secret)
+		if err != nil {
+			return nil, err
+		}
+		s.client = c
 	}
 
 	if strings.Contains(u.Path, "track") {

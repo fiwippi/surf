@@ -16,7 +16,6 @@ import (
 //		 take more than 3 seconds to respond to play
 // TODO download the next track in the queue so we don't have to
 //       wait to download it
-// TODO spotify token expired and refresh token is not set oauth2
 
 func mustExec(path string) {
 	_, err := exec.LookPath(path)

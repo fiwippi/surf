@@ -71,14 +71,14 @@ func newSession(s *state.State, ytdlp *ytdlp.Client) (*session, error) {
 	}
 
 	ss := &session{
-		state:   s,
-		voice:   v,
-		queue:   newQueue(),
-		abort:   make(chan struct{}),
-		skip:    make(chan struct{}),
+		state:      s,
+		voice:      v,
+		queue:      newQueue(),
+		abort:      make(chan struct{}),
+		skip:       make(chan struct{}),
 		cancelPipe: func() {},
-		decoder: ogg.NewDecoder(),
-		ytdlp:   ytdlp,
+		decoder:    ogg.NewDecoder(),
+		ytdlp:      ytdlp,
 	}
 	go ss.processSignals()
 	go ss.processVoice()
@@ -94,7 +94,7 @@ func (s *session) sendTyping() {
 	}
 }
 
-func (s *session) sendMessage(content string, embeds... discord.Embed) {
+func (s *session) sendMessage(content string, embeds ...discord.Embed) {
 	_, err := s.state.SendMessage(s.ctx.Text, content, embeds...)
 	if err != nil {
 		s.log.Error().Err(err).Str("content", content).Interface("channel", s.ctx.Text).
@@ -158,7 +158,7 @@ func (s *session) processVoice() {
 			// Only log the error if the process wasn't killed manually by us
 			// or due to the connection already being closed
 			s.sendMessage(fmt.Sprintf("Error playing: %s", t.Pretty()))
-			s.log.Error().Err(err).Msg("failed to play track")
+			s.log.Error().Err(err).Msg("failed to pipe track")
 		}
 		s.cancelPipe()
 	}
@@ -258,11 +258,11 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	}
 
 	// Retrieve the track(s)
-	dlCtx, cancel := context.WithTimeout(context.Background(), 5 * time.Minute)
+	dlCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	tracks, err := s.ytdlp.DownloadMetadata(dlCtx, ctx.FirstArg())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error finding track from link/text: %w", err)
 	}
 	if len(tracks) == 0 {
 		return "No tracks found", errors.New("no tracks found")
@@ -271,7 +271,7 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	// Reply if only one track
 	if len(tracks) == 1 {
 		t := tracks[0]
-		if t.Duration > time.Hour * 3 {
+		if t.Duration > time.Hour*3 {
 			return fmt.Sprintf("Could not queue: %s - track is above 3 hours\n", t.Pretty()), nil
 		} else {
 			defer s.queue.Push(t)
@@ -282,7 +282,7 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	// Reply if playlist of tracks
 	failed := 0
 	for _, t := range tracks {
-		if t.Duration > time.Hour * 3 {
+		if t.Duration > time.Hour*3 {
 			failed++
 		} else {
 			s.log.Debug().Str("title", t.VideoTitle).Str("url", t.URL).Msg("queued track")
@@ -329,8 +329,8 @@ func (s *session) Queue() (string, error) {
 	}
 
 	var resp strings.Builder
-	for i, t  := range s.queue.Tracks() {
-		resp.WriteString(fmt.Sprintf("%d. %s\n", i + 1, t.Pretty()))
+	for i, t := range s.queue.Tracks() {
+		resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, t.Pretty()))
 	}
 	return resp.String(), nil
 }
