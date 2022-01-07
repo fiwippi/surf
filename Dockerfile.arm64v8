@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/surf
 
 # 2
-FROM python:alpine
+FROM arm64v8/python:alpine
 
 RUN apk add --update --no-cache --virtual .build-deps gcc musl-dev && \
     pip install --upgrade pip && \
