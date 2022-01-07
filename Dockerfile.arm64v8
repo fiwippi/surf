@@ -10,7 +10,7 @@ FROM arm64v8/python:alpine
 
 RUN apk add --update --no-cache --virtual .build-deps gcc musl-dev && \
     pip install --upgrade pip && \
-    pip install pycrypto yt-dlp && \
+    pip install yt-dlp && \
     rm -rf ~/.cache/pip && \
     apk del .build-deps && \
     apk add ffmpeg
