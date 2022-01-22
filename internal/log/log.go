@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"})
 }
 
@@ -30,10 +30,6 @@ func Info() *zerolog.Event {
 
 func Debug() *zerolog.Event {
 	return log.Debug()
-}
-
-func Trace() *zerolog.Event {
-	return log.Trace()
 }
 
 func With() zerolog.Context {
