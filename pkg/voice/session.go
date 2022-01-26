@@ -1,7 +1,6 @@
 package voice
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,17 +10,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DisgoOrg/disgolink/lavalink"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/voice"
-	"github.com/diamondburned/arikawa/v3/voice/voicegateway"
 	"github.com/rs/zerolog"
 
 	"surf/internal/log"
 	"surf/internal/parse"
 	"surf/internal/pretty"
-	"surf/pkg/ogg"
-	"surf/pkg/ytdlp"
+	"surf/pkg/lava"
 )
 
 const (
@@ -54,17 +52,16 @@ type session struct {
 	// loop    - should the tracks loop
 	// closing - is the session closing
 	loop, closing bool
-	// Decodes the ogg file into opus packets
-	decoder *ogg.Decoder
 	// Client to download metadata and tracks
-	ytdlp *ytdlp.Client
+	lava *lava.Lava
 	// The track currently playing
-	np ytdlp.Track
+	np lavalink.AudioTrack
 	// Specific log for this session
 	log zerolog.Logger
+	// Functions to remove the handlers set on the voice states
 }
 
-func newSession(s *state.State, ytdlp *ytdlp.Client) (*session, error) {
+func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, error) {
 	v, err := voice.NewSession(s)
 	if err != nil {
 		return nil, err
@@ -77,9 +74,10 @@ func newSession(s *state.State, ytdlp *ytdlp.Client) (*session, error) {
 		abort:      make(chan struct{}),
 		skip:       make(chan struct{}),
 		cancelPipe: func() {},
-		decoder:    ogg.NewDecoder(),
-		ytdlp:      ytdlp,
+		lava:       lava,
 	}
+	lava.EnsurePlayerExists(ctx.GID)
+
 	go ss.processSignals()
 	go ss.processVoice()
 	return ss, nil
@@ -151,42 +149,50 @@ func (s *session) processVoice() {
 		sleeping = 0
 		ctx, cancel := context.WithCancel(context.Background())
 		s.cancelPipe = cancel
-		s.log.Debug().Str("title", t.VideoTitle).Str("url", t.URL).Msg("playing track")
-		err = s.pipeVoice(ctx, t.URL, t)
-		s.log.Debug().Str("title", t.VideoTitle).Str("url", t.URL).Msg("track done")
+		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("playing track")
+		shouldExit, err := s.pipeVoice(ctx, t)
+		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("track done")
 		if err != nil && !isSignalKilled(err) && !isClosedConn(err) {
 			// Only log the error if the process wasn't killed manually by us
 			// or due to the connection already being closed
-			s.sendMessage(fmt.Sprintf("Error playing: %s", t.Pretty()))
+			s.sendMessage(fmt.Sprintf("Error playing: %s", lava.FmtTrack(t)))
 			s.log.Error().Err(err).Msg("failed to pipe track")
+		}
+		if shouldExit {
+			// If the currently playing track did not exit because it ended,
+			// e.g. because there was an exception or it's stuck, then we need
+			// to leave voice to reset the websocket state
+			s.sendMessage(fmt.Sprintf("Error playing: %s", lava.FmtTrack(t)))
+			s.log.Debug().Msg("track did not end with lava.TrackEnd")
+			err := s.Leave()
+			if err != nil {
+				s.log.Error().Err(err).Msg("failed to leave voice due invalid track end reason")
+			}
+			return
 		}
 		s.cancelPipe()
 	}
 }
 
-func (s *session) pipeVoice(ctx context.Context, url string, t ytdlp.Track) error {
+func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (bool, error) {
 	defer func() {
-		s.np = ytdlp.Track{}
+		s.np = nil
 	}()
 
 	// Tells discord we are about to send the play message
 	s.sendTyping()
 
-	// Download the file
-	audio, err := s.ytdlp.DownloadFile(ctx, url)
-	if err != nil {
-		return err
-	}
-
 	// Stream the audio towards the voice state
 	for {
 		s.np = t
-		s.sendMessage("Playing: " + t.Pretty())
-		if err := s.voice.Speaking(ctx, voicegateway.Microphone); err != nil {
-			return err
+		s.sendMessage("Playing: " + lava.FmtTrack(t))
+		ct, err := s.lava.Play(ctx, s.ctx.GID, t)
+		if err != nil {
+			return false, err
 		}
-		if err := s.decoder.Decode(ctx, s.voice, bytes.NewReader(audio)); err != nil {
-			return err
+
+		if ct != lava.TrackEnd {
+			return true, nil
 		}
 
 		// Play the track again if we're looping
@@ -194,7 +200,7 @@ func (s *session) pipeVoice(ctx context.Context, url string, t ytdlp.Track) erro
 			continue
 		}
 
-		return nil
+		return false, nil
 	}
 }
 
@@ -212,7 +218,7 @@ func (s *session) Join(ctx SessionContext) error {
 	}
 
 	s.ctx = ctx
-	s.log = log.With().Uint64("gID", uint64(ctx.GID)).Logger()
+	s.log = log.With().Uint64("gid", uint64(ctx.GID)).Logger()
 
 	return nil
 }
@@ -230,8 +236,16 @@ func (s *session) Leave() error {
 	close(s.abort)
 	close(s.skip)
 
-	// Leave the channel
-	err := s.voice.Leave(context.Background())
+	// Clear the player
+	err := s.lava.Close(s.ctx.GID)
+	if err != nil {
+		s.log.Error().Err(err).Msg("error closing lava")
+	}
+
+	// Leave the server
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = s.voice.Leave(ctx)
 	if err != nil {
 		return err
 	}
@@ -240,14 +254,12 @@ func (s *session) Leave() error {
 	s.queue.Init()
 	s.queue = nil
 	s.voice = nil
-	s.decoder = nil
-	s.ytdlp = nil
 	s.state = nil
 
 	return nil
 }
 
-func (s *session) Play(ctx SessionContext) (string, error) {
+func (s *session) Play(ctx SessionContext, searchType lavalink.SearchType) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -260,7 +272,7 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	// Retrieve the track(s)
 	dlCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	tracks, err := s.ytdlp.DownloadMetadata(dlCtx, ctx.FirstArg())
+	tracks, err := s.lava.Query(dlCtx, searchType, ctx.FirstArg())
 	if err != nil {
 		return "", fmt.Errorf("error finding track from link/text: %w", err)
 	}
@@ -268,39 +280,20 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 		return "No tracks found", errors.New("no tracks found")
 	}
 
-	// Reply if only one track
-	if len(tracks) == 1 {
-		t := tracks[0]
-		if t.Duration > time.Hour*3 {
-			return fmt.Sprintf("Could not queue: %s - track is above 3 hours\n", t.Pretty()), nil
-		} else {
-			defer s.queue.Push(t)
-			return fmt.Sprintf("Queued: %s\n", t.Pretty()), nil
-		}
-	}
-
 	// Reply if playlist of tracks
-	failed := 0
 	for _, t := range tracks {
-		if t.Duration > time.Hour*3 {
-			failed++
-		} else {
-			s.log.Debug().Str("title", t.VideoTitle).Str("url", t.URL).Msg("queued track")
-			s.queue.Push(t)
-		}
-	}
-	if failed > 0 {
-		return fmt.Sprintf("Queued: `%d` tracks - `%d` failed\n", len(tracks), failed), nil
+		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("queued track")
+		s.queue.Push(t)
 	}
 	return fmt.Sprintf("Queued: `%d` tracks\n", len(tracks)), nil
 }
 
-func (s *session) Pause() {
-	s.decoder.Pause()
+func (s *session) Pause() error {
+	return s.lava.Pause(s.ctx.GID)
 }
 
-func (s *session) Resume() {
-	s.decoder.Resume()
+func (s *session) Resume() error {
+	return s.lava.Resume(s.ctx.GID)
 }
 
 func (s *session) Skip() {
@@ -317,7 +310,7 @@ func (s *session) Seek(ctx SessionContext) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
-	return t, s.decoder.Seek(t)
+	return t, s.lava.Seek(s.ctx.GID, t)
 }
 
 func (s *session) Queue() (string, error) {
@@ -330,7 +323,7 @@ func (s *session) Queue() (string, error) {
 
 	var resp strings.Builder
 	for i, t := range s.queue.Tracks() {
-		resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, t.Pretty()))
+		resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author(), t.Info().Title())))
 	}
 	return resp.String(), nil
 }
@@ -339,11 +332,15 @@ func (s *session) NowPlaying() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.np == (ytdlp.Track{}) {
+	if s.np == nil {
 		return "", errors.New("no track is currently playing")
 	}
-	resp := fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.VideoTitle, s.np.Uploader,
-		pretty.Duration(s.decoder.Time), pretty.Duration(s.np.Duration))
+	pos, err := s.lava.Position(s.ctx.GID)
+	if err != nil {
+		return "", err
+	}
+	resp := fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title(), s.np.Info().Author(),
+		pretty.Duration(pos), pretty.Duration(s.np.Info().Length()))
 	return resp, nil
 }
 

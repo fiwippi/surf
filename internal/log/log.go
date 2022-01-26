@@ -12,6 +12,11 @@ func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"})
 }
 
+func Logger(lvl zerolog.Level) *zerolog.Logger {
+	l := log.Logger.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}).Level(lvl)
+	return &l
+}
+
 func Error() *zerolog.Event {
 	return log.Error()
 }

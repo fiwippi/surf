@@ -2,10 +2,10 @@
 Self-hosted Discord music bot
 
 ## Features
-- Plays YouTube/Soundcloud/Bandcamp/Spotify
-- Search YouTube
+- Plays YouTube/Soundcloud/Bandcamp/Spotify/Vimeo/HTTP
+- Search YouTube + YouTube Music + Soundcloud
 - Queue support
-- Supports Pause, Resume, and Skip tracks
+- Supports Pause, Resume, Skip and Seek tracks
 - Supports Move and Remove tracks in the queue
 
 ## Installation
@@ -21,6 +21,8 @@ $ make build
 2. Configure the `docker-compose.yml` file
 3. Run `docker-compose up`
 
+⚠️ - If you're running in Docker, you should avoid specifying any of the Lavalink `.env` variables
+
 #### GitHub Container Registry
 An official container image exists at `ghcr.io/fiwippi/surf:latest`
 
@@ -29,6 +31,12 @@ surf requires some environment variables:
 ```.dotenv
 # Your Discord Bot Token
 BOT_TOKEN=token 
+
+# Lavalink Config
+LAVALINK_HOST=0.0.0.0
+LAVALINK_PORT=2333
+LAVALINK_PASS=youshallnotpass
+LAVALINK_PATH=/Lavalink.jar
 
 # If you want to support spotify you 
 # can supply these two variables

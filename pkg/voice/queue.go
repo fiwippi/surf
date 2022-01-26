@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"surf/pkg/ytdlp"
+	"github.com/DisgoOrg/disgolink/lavalink"
 )
 
 var ErrEmptyQueue = errors.New("queue is empty")
@@ -22,17 +22,17 @@ func (q *queue) Init() { q.l.Init() }
 
 func (q *queue) Len() int { return q.l.Len() }
 
-func (q *queue) Pop() (ytdlp.Track, error) {
+func (q *queue) Pop() (lavalink.AudioTrack, error) {
 	e := q.l.Front()
 	if e == nil {
-		return ytdlp.Track{}, ErrEmptyQueue
+		return nil, ErrEmptyQueue
 	}
 
 	q.l.Remove(e)
-	return e.Value.(ytdlp.Track), nil
+	return e.Value.(lavalink.AudioTrack), nil
 }
 
-func (q *queue) Push(t ytdlp.Track) {
+func (q *queue) Push(t lavalink.AudioTrack) {
 	q.l.PushBack(t)
 }
 
@@ -53,10 +53,10 @@ func (q *queue) Remove(i int) error {
 	panic(fmt.Errorf("queue element '%d' should exist", i))
 }
 
-func (q *queue) Tracks() []ytdlp.Track {
-	tracks := make([]ytdlp.Track, 0)
+func (q *queue) Tracks() []lavalink.AudioTrack {
+	tracks := make([]lavalink.AudioTrack, 0)
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		t := e.Value.(ytdlp.Track)
+		t := e.Value.(lavalink.AudioTrack)
 		tracks = append(tracks, t)
 	}
 	return tracks
@@ -76,7 +76,7 @@ func (q *queue) Move(i, j int) error {
 
 	if j == 0 {
 		q.l.MoveToFront(e)
-	} else if j == q.Len() - 1 {
+	} else if j == q.Len()-1 {
 		q.l.MoveToBack(e)
 	} else {
 		f, err := q.element(j + 1)

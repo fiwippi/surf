@@ -6,28 +6,52 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DisgoOrg/disgolink/lavalink"
+	"github.com/DisgoOrg/snowflake"
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/voice"
 
-	"surf/pkg/ytdlp"
+	"surf/pkg/lava"
 )
 
 type Manager struct {
-	mu     sync.Mutex
-	state  *state.State
-	client *ytdlp.Client
-	voice  map[discord.GuildID]*session
+	mu    sync.Mutex
+	state *state.State
+	lava  *lava.Lava
+	voice map[discord.GuildID]*session
 }
 
-func NewManager(s *state.State) *Manager {
+func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 	voice.AddIntents(s)
 
-	return &Manager{
-		state:  s,
-		client: ytdlp.NewClient(),
-		voice:  make(map[discord.GuildID]*session),
+	l, err := lava.NewLava(conf)
+	if err != nil {
+		return nil, err
 	}
+
+	s.AddHandler(func(e *gateway.VoiceStateUpdateEvent) {
+		chID := snowflake.Snowflake(e.ChannelID.String())
+		l.VoiceStateUpdate(lavalink.VoiceStateUpdate{
+			GuildID:   snowflake.Snowflake(e.GuildID.String()),
+			ChannelID: &chID,
+			SessionID: e.SessionID,
+		})
+	})
+	s.AddHandler(func(e *gateway.VoiceServerUpdateEvent) {
+		l.VoiceServerUpdate(lavalink.VoiceServerUpdate{
+			Token:    e.Token,
+			GuildID:  snowflake.Snowflake(e.GuildID.String()),
+			Endpoint: &e.Endpoint,
+		})
+	})
+
+	return &Manager{
+		lava:  l,
+		state: s,
+		voice: make(map[discord.GuildID]*session),
+	}, nil
 }
 
 // Public
@@ -57,7 +81,7 @@ func (m *Manager) LeaveVoice(ctx SessionContext) error {
 	return nil
 }
 
-func (m *Manager) Play(ctx SessionContext) (string, error) {
+func (m *Manager) Play(ctx SessionContext, searchType lavalink.SearchType) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -66,7 +90,7 @@ func (m *Manager) Play(ctx SessionContext) (string, error) {
 		return "", err
 	}
 
-	resp, err := s.Play(ctx)
+	resp, err := s.Play(ctx, searchType)
 	if err != nil {
 		return "", err
 	}
@@ -94,8 +118,8 @@ func (m *Manager) Pause(ctx SessionContext) error {
 	if err != nil {
 		return err
 	}
-	s.Pause()
-	return nil
+
+	return s.Pause()
 }
 
 func (m *Manager) Resume(ctx SessionContext) error {
@@ -106,8 +130,8 @@ func (m *Manager) Resume(ctx SessionContext) error {
 	if err != nil {
 		return err
 	}
-	s.Resume()
-	return nil
+
+	return s.Resume()
 }
 
 func (m *Manager) Seek(ctx SessionContext) (time.Duration, error) {
@@ -199,7 +223,7 @@ func (m *Manager) Move(ctx SessionContext) error {
 	if err != nil {
 		return err
 	}
-	return s.Move(i - 1, j - 1)
+	return s.Move(i-1, j-1)
 }
 
 // Private
@@ -243,7 +267,7 @@ func (m *Manager) getSession(ctx SessionContext) (*session, error) {
 }
 
 func (m *Manager) createSession(ctx SessionContext) (*session, error) {
-	s, err := newSession(m.state, m.client)
+	s, err := newSession(ctx, m.state, m.lava)
 	if err != nil {
 		return nil, err
 	}
