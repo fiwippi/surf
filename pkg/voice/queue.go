@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/DisgoOrg/disgolink/lavalink"
 )
@@ -79,7 +81,7 @@ func (q *queue) Move(i, j int) error {
 	} else if j == q.Len()-1 {
 		q.l.MoveToBack(e)
 	} else {
-		f, err := q.element(j + 1)
+		f, err := q.element(j - 1)
 		if err != nil {
 			return err
 		}
@@ -87,6 +89,18 @@ func (q *queue) Move(i, j int) error {
 	}
 
 	return nil
+}
+
+func (q *queue) Shuffle() {
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(q.l.Len(), func(i, j int) {
+		a, _ := q.element(i)
+		b, _ := q.element(j)
+
+		if a != nil && b != nil {
+			a.Value, b.Value = b.Value, a.Value
+		}
+	})
 }
 
 func (q *queue) element(i int) (*list.Element, error) {

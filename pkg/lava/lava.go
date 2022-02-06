@@ -76,7 +76,7 @@ func (l *Lava) search(searchType lavalink.SearchType, query string) ([]lavalink.
 	return resp.Tracks, nil
 }
 
-func (l *Lava) searchComplex(st spotifyTrack) (lavalink.AudioTrack, error) {
+func (l *Lava) searchSpotify(st spotifyTrack) (lavalink.AudioTrack, error) {
 	// First we perform the search
 	tracks, err := l.search(lavalink.SearchTypeYoutubeMusic, fmt.Sprintf("%s %s", st.Artist, st.Title))
 	if err != nil {
@@ -91,8 +91,8 @@ func (l *Lava) searchComplex(st spotifyTrack) (lavalink.AudioTrack, error) {
 			diff *= -1
 		}
 
-		containsArtist := strings.Contains(track.Info().Author(), st.Artist)
-		containsTitle := strings.Contains(track.Info().Title(), st.Title)
+		containsArtist := strings.Contains(strings.ToLower(track.Info().Author()), strings.ToLower(st.Artist))
+		containsTitle := strings.Contains(strings.ToLower(track.Info().Title()), strings.ToLower(st.Title))
 		if containsArtist && containsTitle {
 			filtered = append(filtered, search{
 				T:    track,
@@ -135,15 +135,25 @@ func (l *Lava) link(link string) ([]lavalink.AudioTrack, error) {
 	return resp.Tracks, nil
 }
 
-func (l *Lava) Query(ctx context.Context, searchType lavalink.SearchType, text string) ([]lavalink.AudioTrack, error) {
+func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, error) {
 	_, err := url.ParseRequestURI(text)
 	if err != nil {
-		// If we have a search term
-		t, err := l.search(searchType, text)
-		if err != nil {
-			return nil, err
+		// First search youtube music
+		t, err := l.search(lavalink.SearchTypeYoutubeMusic, text)
+		if err == nil {
+			return []lavalink.AudioTrack{t[0]}, nil
 		}
-		return []lavalink.AudioTrack{t[0]}, nil
+		// Second search youtube
+		t, err = l.search(lavalink.SearchTypeYoutube, text)
+		if err == nil {
+			return []lavalink.AudioTrack{t[0]}, nil
+		}
+		// Third search soundcloud
+		t, err = l.search(lavalink.SearchTypeSoundCloud, text)
+		if err == nil {
+			return []lavalink.AudioTrack{t[0]}, nil
+		}
+		return nil, err
 	} else {
 		// If we have a URL we first check if it's a spotify url
 		if !strings.Contains(text, "spotify.com") {
@@ -166,7 +176,7 @@ func (l *Lava) Query(ctx context.Context, searchType lavalink.SearchType, text s
 		// Now we search for the tracks on youtube using spotify metadata
 		tracks := make([]lavalink.AudioTrack, 0)
 		for _, q := range queries {
-			t, err := l.searchComplex(q)
+			t, err := l.searchSpotify(q)
 			if err != nil {
 				log.Error().Err(err).Interface("track", t).Msg("failed to search for spotify track")
 			} else {

@@ -43,13 +43,12 @@ func main() {
 		log.Fatal().Msg("no $LAVALINK_PASS given")
 	}
 	lavalinkPath := os.Getenv("LAVALINK_PATH")
-	if lavalinkPath == "" {
-		log.Fatal().Msg("no $LAVALINK_PATH given")
-	}
 
 	// Ensure Lavalink.jar file exists
-	if _, err := os.Stat(lavalinkPath); os.IsNotExist(err) {
-		log.Fatal().Err(err).Str("path", lavalinkPath).Msg("Lavalink.jar file does not exist")
+	if lavalinkPath != "" {
+		if _, err := os.Stat(lavalinkPath); os.IsNotExist(err) {
+			log.Fatal().Err(err).Str("path", lavalinkPath).Msg("Lavalink.jar file does not exist")
+		}
 	}
 
 	conf := lava.Config{

@@ -81,7 +81,7 @@ func (m *Manager) LeaveVoice(ctx SessionContext) error {
 	return nil
 }
 
-func (m *Manager) Play(ctx SessionContext, searchType lavalink.SearchType) (string, error) {
+func (m *Manager) Play(ctx SessionContext) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (m *Manager) Play(ctx SessionContext, searchType lavalink.SearchType) (stri
 		return "", err
 	}
 
-	resp, err := s.Play(ctx, searchType)
+	resp, err := s.Play(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -224,6 +224,19 @@ func (m *Manager) Move(ctx SessionContext) error {
 		return err
 	}
 	return s.Move(i-1, j-1)
+}
+
+func (m *Manager) Shuffle(ctx SessionContext) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	s, err := m.getSession(ctx)
+	if err != nil {
+		return err
+	}
+
+	s.Shuffle()
+	return nil
 }
 
 // Private

@@ -69,10 +69,7 @@ func (s *spotifyClient) Download(ctx context.Context, link string) ([]spotifyTra
 
 	// Recreate the client if the token has expired
 	token, err := s.client.Token()
-	if err != nil {
-		return nil, err
-	}
-	if !token.Valid() {
+	if err != nil || !token.Valid() {
 		c, err := createClient(s.id, s.secret)
 		if err != nil {
 			return nil, err

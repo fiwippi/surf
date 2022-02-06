@@ -12,8 +12,8 @@ import (
 
 	"github.com/DisgoOrg/disgolink/lavalink"
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
-	"github.com/diamondburned/arikawa/v3/voice"
 	"github.com/rs/zerolog"
 
 	"surf/internal/log"
@@ -36,8 +36,6 @@ type session struct {
 	// State used to send messages to the text channel
 	// the voice state was created from
 	state *state.State
-	// The voice session the bot writes to
-	voice *voice.Session
 	// Queue of tracks
 	queue *queue
 	// skip   - chan to skip a playing song
@@ -58,18 +56,11 @@ type session struct {
 	np lavalink.AudioTrack
 	// Specific log for this session
 	log zerolog.Logger
-	// Functions to remove the handlers set on the voice states
 }
 
 func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, error) {
-	v, err := voice.NewSession(s)
-	if err != nil {
-		return nil, err
-	}
-
 	ss := &session{
 		state:      s,
-		voice:      v,
 		queue:      newQueue(),
 		abort:      make(chan struct{}),
 		skip:       make(chan struct{}),
@@ -212,7 +203,15 @@ func (s *session) Join(ctx SessionContext) error {
 		return nil
 	}
 
-	err := s.voice.JoinChannel(context.Background(), ctx.Voice, false, true)
+	// Join the new channel
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := s.state.Gateway().Send(timeout, &gateway.UpdateVoiceStateCommand{
+		GuildID:   ctx.GID,
+		ChannelID: ctx.Voice,
+		SelfMute:  false,
+		SelfDeaf:  true,
+	})
 	if err != nil {
 		return err
 	}
@@ -245,7 +244,12 @@ func (s *session) Leave() error {
 	// Leave the server
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = s.voice.Leave(ctx)
+	err = s.state.Gateway().Send(ctx, &gateway.UpdateVoiceStateCommand{
+		GuildID:   s.ctx.GID,
+		ChannelID: discord.ChannelID(discord.NullSnowflake),
+		SelfMute:  true,
+		SelfDeaf:  true,
+	})
 	if err != nil {
 		return err
 	}
@@ -253,13 +257,12 @@ func (s *session) Leave() error {
 	// Clear the queue and other data
 	s.queue.Init()
 	s.queue = nil
-	s.voice = nil
 	s.state = nil
 
 	return nil
 }
 
-func (s *session) Play(ctx SessionContext, searchType lavalink.SearchType) (string, error) {
+func (s *session) Play(ctx SessionContext) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -269,10 +272,12 @@ func (s *session) Play(ctx SessionContext, searchType lavalink.SearchType) (stri
 		return "", err
 	}
 
+	s.ctx = ctx // We still need to set the context
+
 	// Retrieve the track(s)
 	dlCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	tracks, err := s.lava.Query(dlCtx, searchType, ctx.FirstArg())
+	tracks, err := s.lava.Query(dlCtx, ctx.FirstArg())
 	if err != nil {
 		return "", fmt.Errorf("error finding track from link/text: %w", err)
 	}
@@ -362,7 +367,16 @@ func (s *session) Move(i, j int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.log.Debug().Int("from", i).Int("to", j).Msg("moving track")
+
 	return s.queue.Move(i, j)
+}
+
+func (s *session) Shuffle() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.queue.Shuffle()
 }
 
 // Util

@@ -13,11 +13,25 @@ import (
 )
 
 func Run(token string, conf lava.Config, lavalinkPath string) error {
-	// Run Lavalink
-	lavalinkCmd := exec.Command("java", "-Djdk.tls.client.protocols=TLSv1.1,TLSv1.2", "-Xmx4G", "-jar", lavalinkPath)
-	log.Info().Str("host", conf.Host).Str("port", conf.Port).Msg("connecting to lavalink...")
-	if err := lavalinkCmd.Start(); err != nil {
-		return fmt.Errorf("failed to start lavalink command: %s", err)
+	// Context for running the bot
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
+	defer cancel()
+
+	// Run Lavalink if needed
+	if lavalinkPath != "" {
+		lavalinkCmd := exec.Command("java", "-Djdk.tls.client.protocols=TLSv1.1,TLSv1.2", "-Xmx4G", "-jar", lavalinkPath)
+		log.Info().Str("host", conf.Host).Str("port", conf.Port).Msg("connecting to lavalink...")
+		if err := lavalinkCmd.Start(); err != nil {
+			return fmt.Errorf("failed to start lavalink: %s", err)
+		}
+
+		go func() {
+			err := lavalinkCmd.Wait()
+			if err != nil {
+				log.Error().Err(err).Msg("lavalink closed with error")
+			}
+			cancel()
+		}()
 	}
 
 	// Create the client
@@ -27,9 +41,6 @@ func Run(token string, conf lava.Config, lavalinkPath string) error {
 	}
 
 	// Run the bot
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
-	defer cancel()
-
 	if err := c.state.Open(ctx); err != nil {
 		return err
 	}

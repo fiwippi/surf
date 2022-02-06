@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DisgoOrg/disgolink/lavalink"
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
@@ -32,28 +31,6 @@ var commands = []api.CreateCommandData{
 			&discord.StringOption{
 				OptionName:  "track",
 				Description: "Search term or URL link to track",
-				Required:    true,
-			},
-		},
-	},
-	{
-		Name:        "music",
-		Description: "Searches for a track on Youtube Music",
-		Options: []discord.CommandOption{
-			&discord.StringOption{
-				OptionName:  "track",
-				Description: "Search term",
-				Required:    true,
-			},
-		},
-	},
-	{
-		Name:        "soundcloud",
-		Description: "Searches for a track on Soundcloud",
-		Options: []discord.CommandOption{
-			&discord.StringOption{
-				OptionName:  "track",
-				Description: "Search term",
 				Required:    true,
 			},
 		},
@@ -123,6 +100,10 @@ var commands = []api.CreateCommandData{
 				Required:    true,
 			},
 		},
+	},
+	{
+		Name:        "shuffle",
+		Description: "Shuffles the queue",
 	},
 }
 
@@ -198,31 +179,9 @@ func (c *client) Leave(ctx voice.SessionContext) {
 
 func (c *client) Play(ctx voice.SessionContext) {
 	c.textResp(ctx, "N/A", false, true)
-	resp, err := c.manager.Play(ctx, lavalink.SearchTypeYoutube)
+	resp, err := c.manager.Play(ctx)
 	if err != nil {
 		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play youtube track")
-		c.editResp(ctx, "Failed...")
-	} else {
-		c.editResp(ctx, resp)
-	}
-}
-
-func (c *client) Music(ctx voice.SessionContext) {
-	c.textResp(ctx, "N/A", false, true)
-	resp, err := c.manager.Play(ctx, lavalink.SearchTypeYoutubeMusic)
-	if err != nil {
-		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play youtube music track")
-		c.editResp(ctx, "Failed...")
-	} else {
-		c.editResp(ctx, resp)
-	}
-}
-
-func (c *client) Soundcloud(ctx voice.SessionContext) {
-	c.textResp(ctx, "N/A", false, true)
-	resp, err := c.manager.Play(ctx, lavalink.SearchTypeYoutubeMusic)
-	if err != nil {
-		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play soundcloud track")
 		c.editResp(ctx, "Failed...")
 	} else {
 		c.editResp(ctx, resp)
@@ -329,6 +288,16 @@ func (c *client) Move(ctx voice.SessionContext) {
 		c.textResp(ctx, "Failed...", true, false)
 	} else {
 		c.textResp(ctx, "Moved", false, false)
+	}
+}
+
+func (c *client) Shuffle(ctx voice.SessionContext) {
+	err := c.manager.Shuffle(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to shuffle queue")
+		c.textResp(ctx, "Failed...", true, false)
+	} else {
+		c.textResp(ctx, "Shuffled", false, false)
 	}
 }
 
