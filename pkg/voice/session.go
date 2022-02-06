@@ -38,8 +38,8 @@ type session struct {
 	state *state.State
 	// Queue of tracks
 	queue *queue
-	// skip   - chan to skip a playing song
-	// abort  - chan to exit the processSignals goroutine
+	// skip  - chan to skip a playing song
+	// abort - chan to exit the processSignals goroutine
 	skip, abort chan struct{}
 	// Cancels the piping of audio to the voice state
 	cancelPipe context.CancelFunc
