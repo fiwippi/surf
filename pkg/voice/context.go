@@ -42,6 +42,10 @@ func CreateContext(s *state.State, e *gateway.InteractionCreateEvent, ci *discor
 	}, nil
 }
 
+func (ctx *SessionContext) HasFirstArg() bool {
+	return len(ctx.options) >= 1
+}
+
 func (ctx *SessionContext) FirstArg() string {
 	if len(ctx.options) < 1 {
 		panic(errors.New("not enough args for first arg"))

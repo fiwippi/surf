@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os/exec"
 	"strings"
 	"sync"
@@ -290,7 +291,12 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("queued track")
 		s.queue.Push(t)
 	}
-	return fmt.Sprintf("Queued: `%d` tracks\n", len(tracks)), nil
+
+	if len(tracks) > 1 {
+		return fmt.Sprintf("Queued: `%d` tracks", len(tracks)), nil
+	} else {
+		return fmt.Sprintf("Queued: %s", lava.FmtTrack(tracks[0])), nil
+	}
 }
 
 func (s *session) Pause() error {
@@ -318,17 +324,27 @@ func (s *session) Seek(ctx SessionContext) (time.Duration, error) {
 	return t, s.lava.Seek(s.ctx.GID, t)
 }
 
-func (s *session) Queue() (string, error) {
+func (s *session) Queue(page int) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.queue.Len() == 0 {
 		return "No items in queue", nil
 	}
+	maxPages := max(1, math.Ceil(float64(s.queue.Len())/25.0))
+	if page < 1 || float64(page) > maxPages {
+		return "", fmt.Errorf("invalid queue page: %d", page)
+	}
+
+	start := (page - 1) * 25
+	end := (page * 25) - 1
 
 	var resp strings.Builder
 	for i, t := range s.queue.Tracks() {
-		resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author(), t.Info().Title())))
+		if i >= start && i <= end {
+			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author(), t.Info().Title())))
+
+		}
 	}
 	return resp.String(), nil
 }
@@ -380,6 +396,13 @@ func (s *session) Shuffle() {
 }
 
 // Util
+
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 func isSignalKilled(err error) bool {
 	exitErr, ok := err.(*exec.ExitError)

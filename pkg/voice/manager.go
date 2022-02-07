@@ -160,11 +160,21 @@ func (m *Manager) Queue(ctx SessionContext) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var page = 1
+	var err error
+	if ctx.HasFirstArg() {
+		page, err = strconv.Atoi(ctx.FirstArg())
+		if err != nil {
+			return "", err
+		}
+	}
+
 	s, err := m.getSession(ctx)
 	if err != nil {
 		return "", err
 	}
-	return s.Queue()
+
+	return s.Queue(page)
 }
 
 func (m *Manager) NowPlaying(ctx SessionContext) (string, error) {

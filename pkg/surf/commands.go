@@ -65,6 +65,13 @@ var commands = []api.CreateCommandData{
 	{
 		Name:        "queue",
 		Description: "View the queue of tracks",
+		Options: []discord.CommandOption{
+			&discord.IntegerOption{
+				OptionName:  "page",
+				Description: "Which page of the queue to view (25 tracks per page)",
+				Required:    false,
+			},
+		},
 	},
 	{
 		Name:        "np",
