@@ -141,8 +141,14 @@ func interactionCreateEvent(c *client) interface{} {
 		ctx, err := voice.CreateContext(c.state, e, ci)
 		if err != nil {
 			log.Error().Err(err).Str("user", e.Sender().Username).Msg("user is not in voice channel")
-
 			c.textResp(voice.SessionContext{Event: e}, "You must be in a voice channel", true, false)
+			return
+		}
+
+		// Now we ensure the user is in the same voice channel
+		if !c.manager.SameVoiceChannel(ctx) {
+			log.Error().Err(err).Str("user", e.Sender().Username).Msg("user is not in the same voice channel")
+			c.textResp(voice.SessionContext{Event: e}, "You must be in the same voice channel", true, false)
 			return
 		}
 

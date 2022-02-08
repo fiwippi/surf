@@ -3,7 +3,8 @@ module surf
 go 1.16
 
 require (
-	github.com/DisgoOrg/disgolink/lavalink v1.1.3
+	github.com/DisgoOrg/disgolink/lavalink v1.2.1
+	github.com/DisgoOrg/log v1.1.2
 	github.com/DisgoOrg/snowflake v1.0.3
 	github.com/diamondburned/arikawa/v3 v3.0.0-rc.4
 	github.com/joho/godotenv v1.4.0

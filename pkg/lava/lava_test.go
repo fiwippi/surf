@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DisgoOrg/disgolink/lavalink"
 
@@ -100,13 +101,13 @@ func TestSearch(t *testing.T) {
 }
 
 func TestDownload(t *testing.T) {
-	tracks, err := lava.Query(ctx, lavalink.SearchTypeYoutubeMusic, "sinjin and you were one")
+	tracks, err := lava.Query(ctx, "sinjin and you were one")
 	if err != nil {
 		t.Error(err)
 	}
 	fmt.Printf("Download (search): %s\n", fmtTrack(tracks...))
 
-	tracks, err = lava.Query(ctx, "", "https://www.youtube.com/watch?v=LYzM3oWC8p8")
+	tracks, err = lava.Query(ctx, "https://www.youtube.com/watch?v=LYzM3oWC8p8")
 	if err != nil {
 		t.Error(err)
 	}
@@ -114,14 +115,14 @@ func TestDownload(t *testing.T) {
 }
 
 func TestSpotifySearch(t *testing.T) {
-	tracks, err := lava.Query(ctx, "", "https://open.spotify.com/track/3Pb9QabepyR9e9D8NqorPH?si=4f75dad081f4430b")
+	tracks, err := lava.Query(ctx, "https://open.spotify.com/track/3Pb9QabepyR9e9D8NqorPH?si=4f75dad081f4430b")
 	if err != nil {
 		t.Error(err)
 	} else {
 		fmt.Printf("Track (Spotify): %s\n", fmtTrack(tracks[0]))
 	}
 
-	tracks, err = lava.Query(ctx, "", "https://open.spotify.com/album/0QMxX4ZCFZK3ku24sviec4?si=gYf5pWPZSm27FbzCJNzr6g")
+	tracks, err = lava.Query(ctx, "https://open.spotify.com/album/0QMxX4ZCFZK3ku24sviec4?si=gYf5pWPZSm27FbzCJNzr6g")
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -131,8 +132,19 @@ func TestSpotifySearch(t *testing.T) {
 }
 
 func TestInvalidTracks(t *testing.T) {
-	_, err := lava.Query(ctx, "", "https://www.youtube.com/playlist?list=PLkLKCs4iHkejj-QVr2q_WLjOUueG3x5Es")
+	_, err := lava.Query(ctx, "https://www.youtube.com/playlist?list=PLkLKCs4iHkejj-QVr2q_WLjOUueG3x5Es")
 	if err == nil {
 		t.Error(err)
 	}
+}
+
+func TestDownloadLargeSpotifyPlaylist(t *testing.T) {
+	start := time.Now()
+	_, err := lava.Query(ctx, "https://open.spotify.com/playlist/647no1muSFW2iJe2mrQAc0?si=903e24bd0f0645a8")
+	if err != nil {
+		t.Error(err)
+	}
+	duration := time.Since(start)
+
+	fmt.Printf("Download (spotify - large playlist): %s\n", duration)
 }

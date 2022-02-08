@@ -16,6 +16,8 @@ import (
 	"surf/pkg/lava"
 )
 
+var ErrNotSameVoiceChannel = errors.New("user is not in same voice channel as bot")
+
 type Manager struct {
 	mu    sync.Mutex
 	state *state.State
@@ -56,6 +58,11 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 
 // Public
 
+func (m *Manager) SameVoiceChannel(ctx SessionContext) bool {
+	s, _ := m.voice[ctx.GID]
+	return !(s != nil && ctx.Voice != s.ctx.Voice)
+}
+
 func (m *Manager) JoinVoice(ctx SessionContext) error {
 	_, err := m.joinVoice(ctx, true)
 	return err
@@ -83,13 +90,16 @@ func (m *Manager) LeaveVoice(ctx SessionContext) error {
 
 func (m *Manager) Play(ctx SessionContext) (string, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	s, err := m.joinVoice(ctx, false)
 	if err != nil {
+		m.mu.Unlock()
 		return "", err
 	}
+	m.mu.Unlock()
 
+	// Play might block we we unlock the mutex to allow
+	// the session to receive other commands, e.g. leave
 	resp, err := s.Play(ctx)
 	if err != nil {
 		return "", err
@@ -153,7 +163,7 @@ func (m *Manager) Loop(ctx SessionContext) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return s.Loop(), nil
+	return s.Loop()
 }
 
 func (m *Manager) Queue(ctx SessionContext) (string, error) {
@@ -262,6 +272,9 @@ func (m *Manager) joinVoice(ctx SessionContext, lock bool) (*session, error) {
 	var s *session
 	s, err = m.getSession(ctx)
 	if err != nil {
+		if err == ErrNotSameVoiceChannel {
+			return nil, err
+		}
 		// If a session doesn't exist we create one
 		s, err = m.createSession(ctx)
 		if err != nil {
@@ -279,6 +292,9 @@ func (m *Manager) joinVoice(ctx SessionContext, lock bool) (*session, error) {
 
 func (m *Manager) getSession(ctx SessionContext) (*session, error) {
 	s, ok := m.voice[ctx.GID]
+	if s != nil && ctx.Voice != s.ctx.Voice {
+		return nil, ErrNotSameVoiceChannel
+	}
 	if s != nil && s.closing {
 		m.deleteSession(ctx)
 		ok = false

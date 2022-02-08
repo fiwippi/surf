@@ -28,12 +28,15 @@ const (
 	defaultInactivityTimeout = 5 * time.Minute
 )
 
-var empty = struct{}{}
+var (
+	empty            = struct{}{}
+	ErrSessionClosed = fmt.Errorf("session is closed")
+)
 
 type session struct {
 	// Mutex synchronises access to the queue and for
 	// checking if the session is closing
-	mu sync.Mutex
+	mu sync.RWMutex
 	// State used to send messages to the text channel
 	// the voice state was created from
 	state *state.State
@@ -57,16 +60,21 @@ type session struct {
 	np lavalink.AudioTrack
 	// Specific log for this session
 	log zerolog.Logger
+	// Playing is the only operation which can cancel for
+	// long periods of time so we keep track of it's cancel
+	// func so we can cancel the operation so we can leave etc.
+	playCancelFunc context.CancelFunc
 }
 
 func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, error) {
 	ss := &session{
-		state:      s,
-		queue:      newQueue(),
-		abort:      make(chan struct{}),
-		skip:       make(chan struct{}),
-		cancelPipe: func() {},
-		lava:       lava,
+		state:          s,
+		lava:           lava,
+		queue:          newQueue(),
+		abort:          make(chan struct{}),
+		skip:           make(chan struct{}),
+		cancelPipe:     func() {},
+		playCancelFunc: func() {},
 	}
 	lava.EnsurePlayerExists(ctx.GID)
 
@@ -78,6 +86,10 @@ func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, 
 // Internal
 
 func (s *session) sendTyping() {
+	if s.closing {
+		return
+	}
+
 	err := s.state.Typing(s.ctx.Text)
 	if err != nil {
 		s.log.Error().Err(err).Interface("channel", s.ctx.Text).Msg("failed to send typing")
@@ -85,6 +97,10 @@ func (s *session) sendTyping() {
 }
 
 func (s *session) sendMessage(content string, embeds ...discord.Embed) {
+	if s.closing {
+		return
+	}
+
 	_, err := s.state.SendMessage(s.ctx.Text, content, embeds...)
 	if err != nil {
 		s.log.Error().Err(err).Str("content", content).Interface("channel", s.ctx.Text).
@@ -123,27 +139,27 @@ func (s *session) processVoice() {
 			}
 		}
 
-		s.mu.Lock()
+		s.mu.RLock()
 		// Ensure the bot isn't shutting down
 		if s.closing {
-			s.mu.Unlock()
+			s.mu.RUnlock()
 			return
 		}
 		// Get front of the queue
 		t, err := s.queue.Pop()
 		if err != nil {
-			s.mu.Unlock()
+			s.mu.RUnlock()
 			continue
 		}
-		s.mu.Unlock()
+		s.mu.RUnlock()
 
 		// Pipe the track to the voice state
 		sleeping = 0
 		ctx, cancel := context.WithCancel(context.Background())
 		s.cancelPipe = cancel
-		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("playing track")
+		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("playing track")
 		shouldExit, err := s.pipeVoice(ctx, t)
-		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("track done")
+		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("track done")
 		if err != nil && !isSignalKilled(err) && !isClosedConn(err) {
 			// Only log the error if the process wasn't killed manually by us
 			// or due to the connection already being closed
@@ -203,6 +219,9 @@ func (s *session) Join(ctx SessionContext) error {
 	if s.ctx.Voice == ctx.Voice {
 		return nil
 	}
+	if s.closing {
+		return ErrSessionClosed
+	}
 
 	// Join the new channel
 	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -224,11 +243,13 @@ func (s *session) Join(ctx SessionContext) error {
 }
 
 func (s *session) Leave() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Signify the session is closing
 	s.closing = true
+	// Stop any playing blocking the processing
+	s.playCancelFunc()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Stop writing to the voice state
 	s.cancelPipe()
@@ -264,8 +285,11 @@ func (s *session) Leave() error {
 }
 
 func (s *session) Play(ctx SessionContext) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return "", ErrSessionClosed
+	}
 
 	// Join the voice channel if needed
 	err := s.Join(ctx)
@@ -276,8 +300,9 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	s.ctx = ctx // We still need to set the context
 
 	// Retrieve the track(s)
-	dlCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	dlCtx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Minute)
+	s.playCancelFunc = cancelFunc
+	defer cancelFunc()
 	tracks, err := s.lava.Query(dlCtx, ctx.FirstArg())
 	if err != nil {
 		return "", fmt.Errorf("error finding track from link/text: %w", err)
@@ -285,10 +310,13 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	if len(tracks) == 0 {
 		return "No tracks found", errors.New("no tracks found")
 	}
+	if dlCtx.Err() != nil {
+		return "", dlCtx.Err()
+	}
 
 	// Reply if playlist of tracks
 	for _, t := range tracks {
-		s.log.Debug().Str("title", t.Info().Title()).Str("author", t.Info().Author()).Msg("queued track")
+		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("queued track")
 		s.queue.Push(t)
 	}
 
@@ -300,23 +328,53 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 }
 
 func (s *session) Pause() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return ErrSessionClosed
+	}
+
 	return s.lava.Pause(s.ctx.GID)
 }
 
 func (s *session) Resume() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return ErrSessionClosed
+	}
+
 	return s.lava.Resume(s.ctx.GID)
 }
 
 func (s *session) Skip() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return
+	}
+
 	s.skip <- empty
 }
 
-func (s *session) Loop() bool {
+func (s *session) Loop() (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return false, ErrSessionClosed
+	}
+
 	s.loop = !s.loop
-	return s.loop
+	return s.loop, nil
 }
 
 func (s *session) Seek(ctx SessionContext) (time.Duration, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return 0, ErrSessionClosed
+	}
+
 	t, err := parse.Duration(ctx.FirstArg())
 	if err != nil {
 		return 0, err
@@ -325,8 +383,11 @@ func (s *session) Seek(ctx SessionContext) (time.Duration, error) {
 }
 
 func (s *session) Queue(page int) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return "", ErrSessionClosed
+	}
 
 	if s.queue.Len() == 0 {
 		return "No items in queue", nil
@@ -342,7 +403,7 @@ func (s *session) Queue(page int) (string, error) {
 	var resp strings.Builder
 	for i, t := range s.queue.Tracks() {
 		if i >= start && i <= end {
-			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author(), t.Info().Title())))
+			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author, t.Info().Title)))
 
 		}
 	}
@@ -350,8 +411,11 @@ func (s *session) Queue(page int) (string, error) {
 }
 
 func (s *session) NowPlaying() (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return "", ErrSessionClosed
+	}
 
 	if s.np == nil {
 		return "", errors.New("no track is currently playing")
@@ -360,28 +424,37 @@ func (s *session) NowPlaying() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resp := fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title(), s.np.Info().Author(),
-		pretty.Duration(pos), pretty.Duration(s.np.Info().Length()))
+	resp := fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title, s.np.Info().Author,
+		pretty.Duration(pos), pretty.Duration(s.np.Info().Length))
 	return resp, nil
 }
 
 func (s *session) ClearQueue() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return
+	}
 
 	s.queue.Init()
 }
 
 func (s *session) Remove(i int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return ErrSessionClosed
+	}
 
 	return s.queue.Remove(i)
 }
 
 func (s *session) Move(i, j int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return ErrSessionClosed
+	}
 
 	s.log.Debug().Int("from", i).Int("to", j).Msg("moving track")
 
@@ -389,8 +462,11 @@ func (s *session) Move(i, j int) error {
 }
 
 func (s *session) Shuffle() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closing {
+		return
+	}
 
 	s.queue.Shuffle()
 }
