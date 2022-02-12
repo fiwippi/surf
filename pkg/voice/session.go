@@ -139,7 +139,7 @@ func (s *session) processVoice() {
 			}
 		}
 
-		s.mu.RLock()
+		s.mu.RLock() // TODO should this be .Lock() instead of RLock()?
 		// Ensure the bot isn't shutting down
 		if s.closing {
 			s.mu.RUnlock()
@@ -440,14 +440,18 @@ func (s *session) ClearQueue() {
 	s.queue.Init()
 }
 
-func (s *session) Remove(i int) error {
+func (s *session) Remove(i int) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closing {
-		return ErrSessionClosed
+		return "", ErrSessionClosed
 	}
 
-	return s.queue.Remove(i)
+	t, err := s.queue.Remove(i)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Removed %s", lava.FmtTrack(t)), nil
 }
 
 func (s *session) Move(i, j int) error {

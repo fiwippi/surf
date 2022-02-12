@@ -38,16 +38,16 @@ func (q *queue) Push(t lavalink.AudioTrack) {
 	q.l.PushBack(t)
 }
 
-func (q *queue) Remove(i int) error {
+func (q *queue) Remove(i int) (lavalink.AudioTrack, error) {
 	if i < 0 || i >= q.Len() {
-		return errors.New("element does not exist")
+		return nil, errors.New("element does not exist")
 	}
 
 	count := 0
 	for e := q.l.Front(); e != nil; e = e.Next() {
 		if i == count {
 			q.l.Remove(e)
-			return nil
+			return e.Value.(lavalink.AudioTrack), nil
 		}
 		count++
 	}

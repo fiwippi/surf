@@ -210,18 +210,18 @@ func (m *Manager) Clear(ctx SessionContext) error {
 	return nil
 }
 
-func (m *Manager) Remove(ctx SessionContext) error {
+func (m *Manager) Remove(ctx SessionContext) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	s, err := m.getSession(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	i, err := strconv.Atoi(ctx.FirstArg())
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.Remove(i - 1)
 }

@@ -285,8 +285,8 @@ func (c *client) Clear(ctx voice.SessionContext) {
 }
 
 func (c *client) Remove(ctx voice.SessionContext) {
-	err := c.manager.Remove(ctx)
-	if err != nil {
+	msg, err := c.manager.Remove(ctx)
+	if err != nil || msg == "" {
 		log.Error().Err(err).Msg("failed to remove track from queue")
 		c.textResp(ctx, "Failed...", true, false)
 	} else {
