@@ -60,7 +60,7 @@ type session struct {
 	np lavalink.AudioTrack
 	// Specific log for this session
 	log zerolog.Logger
-	// Playing is the only operation which can cancel for
+	// Playing is the only operation which can block for
 	// long periods of time so we keep track of it's cancel
 	// func so we can cancel the operation so we can leave etc.
 	playCancelFunc context.CancelFunc
