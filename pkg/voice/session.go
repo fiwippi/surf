@@ -205,6 +205,7 @@ func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (bool, e
 
 		// Play the track again if we're looping
 		if s.loop {
+			t = t.Clone()
 			continue
 		}
 
