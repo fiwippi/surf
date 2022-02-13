@@ -60,13 +60,12 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 
 func (m *Manager) SameVoiceChannel(ctx SessionContext) bool {
 	s, ok := m.voice[ctx.GID]
-	if ok {
-		if s == nil {
-			return false
-		}
-		return !(ctx.Voice != s.ctx.Voice)
+	if !ok || s == nil {
+		// If the session doesn't exist treat it like the
+		// bot is in the same voice channel as the user
+		return true
 	}
-	return false
+	return ctx.Voice == s.ctx.Voice
 }
 
 func (m *Manager) JoinVoice(ctx SessionContext) error {

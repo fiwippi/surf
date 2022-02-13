@@ -427,6 +427,7 @@ func (s *session) NowPlaying() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	fmt.Println("SONG POSITION", pos, pretty.Duration(pos))
 	return fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title, s.np.Info().Author,
 		pretty.Duration(pos), pretty.Duration(s.np.Info().Length)), nil
 }
