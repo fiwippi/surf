@@ -122,7 +122,7 @@ func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.Aud
 	// Now filter the searches
 	filtered := make([]search, 0)
 	for _, track := range tracks {
-		diff := st.Duration - track.Info().Length
+		diff := st.Duration - ParseDuration(track.Info().Length)
 		if diff < 0 {
 			diff *= -1
 		}
@@ -301,15 +301,15 @@ func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.Aud
 	listener := closeListener{quit: done}
 	p.AddListener(listener)
 
+	t.SetPosition(0)
 	err := p.Play(t)
 	if err != nil {
 		return CloseEvent{Type: TrackEnd}, err
 	}
 
-	ce := CloseEvent{Type: TrackEnd}
+	ce := CloseEvent{Type: TrackEnd, Reason: "context done"}
 	select {
 	case <-ctx.Done():
-	case <-time.After(t.Info().Length + 30*time.Second):
 	case e := <-done:
 		ce = e
 	}
@@ -344,7 +344,7 @@ func (l *Lava) Seek(guildID discord.GuildID, t time.Duration) error {
 		return ErrNoPlayer
 	}
 
-	return p.Seek(t)
+	return p.Seek(ConvertDuration(t))
 }
 
 func (l *Lava) Position(guildID discord.GuildID) (time.Duration, error) {
@@ -353,7 +353,7 @@ func (l *Lava) Position(guildID discord.GuildID) (time.Duration, error) {
 		return 0, ErrNoPlayer
 	}
 
-	return p.Position(), nil
+	return ParseDuration(p.Position()), nil
 }
 
 func (l *Lava) Close(guildID discord.GuildID) error {

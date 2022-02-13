@@ -20,6 +20,8 @@ const (
 	WebsocketClosed
 )
 
+var _ lavalink.PlayerEventListener = (*closeListener)(nil)
+
 type closeListener struct {
 	quit chan CloseEvent
 }
@@ -46,10 +48,10 @@ func (cl closeListener) OnTrackException(p lavalink.Player, t lavalink.AudioTrac
 	}
 }
 
-func (cl closeListener) OnTrackStuck(p lavalink.Player, t lavalink.AudioTrack, thresholdMs int) {
+func (cl closeListener) OnTrackStuck(p lavalink.Player, t lavalink.AudioTrack, thresholdMs lavalink.Duration) {
 	cl.quit <- CloseEvent{
 		Type:   TrackStuck,
-		Reason: fmt.Sprintf("threshold ms: %d", thresholdMs),
+		Reason: fmt.Sprintf("threshold ms: %s", thresholdMs.String()),
 	}
 }
 

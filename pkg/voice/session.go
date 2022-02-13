@@ -204,7 +204,8 @@ func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (lava.Cl
 
 		// Play the track again if we're looping
 		if s.loop {
-			t = t.Clone()
+			ctx, s.cancelPipe = context.WithCancel(context.Background())
+			s.log.Debug().Err(err).Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("looping track")
 			continue
 		}
 
@@ -403,7 +404,7 @@ func (s *session) Queue(page int) (string, error) {
 	var total time.Duration
 	var resp strings.Builder
 	for i, t := range s.queue.Tracks() {
-		total += t.Info().Length
+		total += lava.ParseDuration(t.Info().Length)
 		if i >= start && i <= end {
 			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author, t.Info().Title)))
 		}
@@ -427,9 +428,9 @@ func (s *session) NowPlaying() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println("SONG POSITION", pos, pretty.Duration(pos))
+
 	return fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title, s.np.Info().Author,
-		pretty.Duration(pos), pretty.Duration(s.np.Info().Length)), nil
+		pretty.Duration(pos), pretty.Duration(lava.ParseDuration(s.np.Info().Length))), nil
 }
 
 func (s *session) ClearQueue() {
