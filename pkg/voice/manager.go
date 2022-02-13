@@ -226,22 +226,22 @@ func (m *Manager) Remove(ctx SessionContext) (string, error) {
 	return s.Remove(i - 1)
 }
 
-func (m *Manager) Move(ctx SessionContext) error {
+func (m *Manager) Move(ctx SessionContext) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	s, err := m.getSession(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	i, err := strconv.Atoi(ctx.FirstArg())
 	if err != nil {
-		return err
+		return "", err
 	}
 	j, err := strconv.Atoi(ctx.SecondArg())
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.Move(i-1, j-1)
 }

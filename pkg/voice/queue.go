@@ -64,16 +64,17 @@ func (q *queue) Tracks() []lavalink.AudioTrack {
 	return tracks
 }
 
-func (q *queue) Move(i, j int) error {
+func (q *queue) Move(i, j int) (lavalink.AudioTrack, error) {
 	if i < 0 || i >= q.Len() || j < 0 || j >= q.Len() {
-		return errors.New("element does not exist")
-	} else if i == j {
-		return nil
+		return nil, errors.New("element does not exist")
 	}
 
 	e, err := q.element(i)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if i == j {
+		return e.Value.(lavalink.AudioTrack), nil
 	}
 
 	if j == 0 {
@@ -83,12 +84,12 @@ func (q *queue) Move(i, j int) error {
 	} else {
 		f, err := q.element(j - 1)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		q.l.MoveAfter(e, f)
 	}
 
-	return nil
+	return e.Value.(lavalink.AudioTrack), nil
 }
 
 func (q *queue) Shuffle() {

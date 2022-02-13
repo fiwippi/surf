@@ -290,17 +290,17 @@ func (c *client) Remove(ctx voice.SessionContext) {
 		log.Error().Err(err).Msg("failed to remove track from queue")
 		c.textResp(ctx, "Failed...", true, false)
 	} else {
-		c.textResp(ctx, "Removed", false, false)
+		c.textResp(ctx, msg, false, false)
 	}
 }
 
 func (c *client) Move(ctx voice.SessionContext) {
-	err := c.manager.Move(ctx)
-	if err != nil {
+	msg, err := c.manager.Move(ctx)
+	if err != nil || msg == "" {
 		log.Error().Err(err).Msg("failed to move track in queue")
 		c.textResp(ctx, "Failed...", true, false)
 	} else {
-		c.textResp(ctx, "Moved", false, false)
+		c.textResp(ctx, msg, false, false)
 	}
 }
 

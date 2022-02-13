@@ -454,16 +454,21 @@ func (s *session) Remove(i int) (string, error) {
 	return fmt.Sprintf("Removed %s", lava.FmtTrack(t)), nil
 }
 
-func (s *session) Move(i, j int) error {
+func (s *session) Move(i, j int) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closing {
-		return ErrSessionClosed
+		return "", ErrSessionClosed
 	}
 
 	s.log.Debug().Int("from", i).Int("to", j).Msg("moving track")
 
-	return s.queue.Move(i, j)
+	t, err := s.queue.Move(i, j)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("Moved %s to position `%d`", lava.FmtTrack(t), j), nil
 }
 
 func (s *session) Shuffle() {
