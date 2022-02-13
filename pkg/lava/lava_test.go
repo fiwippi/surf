@@ -1,6 +1,7 @@
 package lava
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -42,38 +43,38 @@ func TestMain(m *testing.M) {
 func fmtTrack(tracks ...lavalink.AudioTrack) string {
 	str := make([]string, 0)
 	for _, t := range tracks {
-		str = append(str, fmt.Sprintf("%s - %s (%s)", t.Info().Author(), t.Info().Title(), t.Info().Length()))
+		str = append(str, fmt.Sprintf("%s - %s (%s)", t.Info().Author, t.Info().Title, t.Info().Length))
 	}
 
 	return strings.Join(str, ", ")
 }
 
 func TestLinks(t *testing.T) {
-	tracks, err := lava.link(youtube)
+	tracks, err := lava.link(context.Background(), youtube)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to play youtube link")
 	}
 	fmt.Println("Track - Youtube: ", fmtTrack(tracks...))
 
-	tracks, err = lava.link(soundcloud)
+	tracks, err = lava.link(context.Background(), soundcloud)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to play soundcloud link")
 	}
 	fmt.Println("Track - Soundcloud: ", fmtTrack(tracks...))
 
-	tracks, err = lava.link(youtubePlaylist)
+	tracks, err = lava.link(context.Background(), youtubePlaylist)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to play youtube playlist link")
 	}
 	fmt.Println("Track - Youtube Playlist: ", fmtTrack(tracks...))
 
-	tracks, err = lava.link(soundcloudPlaylist)
+	tracks, err = lava.link(context.Background(), soundcloudPlaylist)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to play soundcloud playlist link")
 	}
 	fmt.Println("Track - Soundcloud Playlist: ", fmtTrack(tracks...))
 
-	tracks, err = lava.link(youtubePlaylistSpecific)
+	tracks, err = lava.link(context.Background(), youtubePlaylistSpecific)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to play youtube playlist link with specific track")
 	}
@@ -81,19 +82,19 @@ func TestLinks(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
-	tracks, err := lava.search(lavalink.SearchTypeYoutube, "1999 she")
+	tracks, err := lava.search(context.Background(), lavalink.SearchTypeYoutube, "1999 she")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to search youtube track")
 	}
 	fmt.Println("Search - Youtube: ", fmtTrack(tracks[0]))
 
-	tracks, err = lava.search(lavalink.SearchTypeYoutubeMusic, "nariaki obukuro gaia")
+	tracks, err = lava.search(context.Background(), lavalink.SearchTypeYoutubeMusic, "nariaki obukuro gaia")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to search youtube music track")
 	}
 	fmt.Println("Search - Youtube Music: ", fmtTrack(tracks[0]))
 
-	tracks, err = lava.search(lavalink.SearchTypeYoutubeMusic, "sinjin hawke blank spaces")
+	tracks, err = lava.search(context.Background(), lavalink.SearchTypeYoutubeMusic, "sinjin hawke blank spaces")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to search soundcloud track")
 	}
