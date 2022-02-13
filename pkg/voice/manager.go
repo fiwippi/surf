@@ -59,8 +59,14 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 // Public
 
 func (m *Manager) SameVoiceChannel(ctx SessionContext) bool {
-	s, _ := m.voice[ctx.GID]
-	return !(s != nil && ctx.Voice != s.ctx.Voice)
+	s, ok := m.voice[ctx.GID]
+	if ok {
+		if s == nil {
+			return false
+		}
+		return !(ctx.Voice != s.ctx.Voice)
+	}
+	return false
 }
 
 func (m *Manager) JoinVoice(ctx SessionContext) error {
