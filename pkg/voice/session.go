@@ -400,14 +400,16 @@ func (s *session) Queue(page int) (string, error) {
 	start := (page - 1) * 25
 	end := (page * 25) - 1
 
+	var total time.Duration
 	var resp strings.Builder
 	for i, t := range s.queue.Tracks() {
+		total += t.Info().Length
 		if i >= start && i <= end {
 			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author, t.Info().Title)))
 		}
 	}
 	resp.WriteRune('\n')
-	resp.WriteString(fmt.Sprintf("Page: `%d`/`%d`", page, int(maxPages)))
+	resp.WriteString(fmt.Sprintf("Page: `%d`/`%d`, Queue length: %s", page, int(maxPages), pretty.Duration(total)))
 	return resp.String(), nil
 }
 
