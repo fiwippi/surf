@@ -1,10 +1,17 @@
 package lava
 
 import (
+	"fmt"
+
 	"github.com/DisgoOrg/disgolink/lavalink"
 )
 
 type CloseType int
+
+type CloseEvent struct {
+	Type   CloseType
+	Reason string
+}
 
 const (
 	TrackEnd CloseType = iota
@@ -14,7 +21,7 @@ const (
 )
 
 type closeListener struct {
-	quit chan CloseType
+	quit chan CloseEvent
 }
 
 func (cl closeListener) OnPlayerPause(p lavalink.Player) {}
@@ -26,17 +33,29 @@ func (cl closeListener) OnPlayerUpdate(p lavalink.Player, s lavalink.PlayerState
 func (cl closeListener) OnTrackStart(p lavalink.Player, t lavalink.AudioTrack) {}
 
 func (cl closeListener) OnTrackEnd(p lavalink.Player, t lavalink.AudioTrack, endReason lavalink.AudioTrackEndReason) {
-	cl.quit <- TrackEnd
+	cl.quit <- CloseEvent{
+		Type:   TrackEnd,
+		Reason: string(endReason),
+	}
 }
 
 func (cl closeListener) OnTrackException(p lavalink.Player, t lavalink.AudioTrack, e lavalink.FriendlyException) {
-	cl.quit <- TrackException
+	cl.quit <- CloseEvent{
+		Type:   TrackException,
+		Reason: e.Error(),
+	}
 }
 
 func (cl closeListener) OnTrackStuck(p lavalink.Player, t lavalink.AudioTrack, thresholdMs int) {
-	cl.quit <- TrackStuck
+	cl.quit <- CloseEvent{
+		Type:   TrackStuck,
+		Reason: fmt.Sprintf("threshold ms: %d", thresholdMs),
+	}
 }
 
 func (cl closeListener) OnWebSocketClosed(p lavalink.Player, code int, reason string, byRemote bool) {
-	cl.quit <- WebsocketClosed
+	cl.quit <- CloseEvent{
+		Type:   WebsocketClosed,
+		Reason: fmt.Sprintf("code: %d reason: %s byRemote: %v", code, reason, byRemote),
+	}
 }

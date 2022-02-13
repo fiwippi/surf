@@ -139,39 +139,39 @@ func (s *session) processVoice() {
 			}
 		}
 
-		s.mu.RLock() // TODO should this be .Lock() instead of RLock()?
+		s.mu.Lock()
 		// Ensure the bot isn't shutting down
 		if s.closing {
-			s.mu.RUnlock()
+			s.mu.Unlock()
 			return
 		}
 		// Get front of the queue
 		t, err := s.queue.Pop()
 		if err != nil {
-			s.mu.RUnlock()
+			s.mu.Unlock()
 			continue
 		}
-		s.mu.RUnlock()
+		s.mu.Unlock()
 
 		// Pipe the track to the voice state
 		sleeping = 0
 		ctx, cancel := context.WithCancel(context.Background())
 		s.cancelPipe = cancel
 		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("playing track")
-		shouldExit, err := s.pipeVoice(ctx, t)
-		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("track done")
+		ce, err := s.pipeVoice(ctx, t)
+		s.log.Debug().Err(err).Str("title", t.Info().Title).Str("author", t.Info().Author).Interface("event_type", ce.Type).Str("reason", ce.Reason).Msg("track done")
 		if err != nil && !isSignalKilled(err) && !isClosedConn(err) {
 			// Only log the error if the process wasn't killed manually by us
 			// or due to the connection already being closed
 			s.sendMessage(fmt.Sprintf("Error playing: %s", lava.FmtTrack(t)))
 			s.log.Error().Err(err).Msg("failed to pipe track")
 		}
-		if shouldExit {
+		if ce.Type != lava.TrackEnd {
 			// If the currently playing track did not exit because it ended,
 			// e.g. because there was an exception or it's stuck, then we need
 			// to leave voice to reset the websocket state
 			s.sendMessage(fmt.Sprintf("Error playing: %s", lava.FmtTrack(t)))
-			s.log.Debug().Msg("track did not end with lava.TrackEnd")
+			s.log.Debug().Interface("event_type", ce.Type).Str("reason", ce.Reason).Msg("track did not end with lava.TrackEnd")
 			err := s.Leave()
 			if err != nil {
 				s.log.Error().Err(err).Msg("failed to leave voice due invalid track end reason")
@@ -182,7 +182,7 @@ func (s *session) processVoice() {
 	}
 }
 
-func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (bool, error) {
+func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (lava.CloseEvent, error) {
 	defer func() {
 		s.np = nil
 	}()
@@ -194,13 +194,12 @@ func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (bool, e
 	for {
 		s.np = t
 		s.sendMessage("Playing: " + lava.FmtTrack(t))
-		ct, err := s.lava.Play(ctx, s.ctx.GID, t)
+		ce, err := s.lava.Play(ctx, s.ctx.GID, t)
 		if err != nil {
-			return false, err
+			return ce, err
 		}
-
-		if ct != lava.TrackEnd {
-			return true, nil
+		if ce.Type != lava.TrackEnd {
+			return ce, nil
 		}
 
 		// Play the track again if we're looping
@@ -209,7 +208,7 @@ func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (bool, e
 			continue
 		}
 
-		return false, nil
+		return ce, nil
 	}
 }
 

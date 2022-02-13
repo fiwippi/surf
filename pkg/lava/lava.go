@@ -286,38 +286,38 @@ func (l *Lava) EnsurePlayerExists(guildID discord.GuildID) {
 	l.l.Player(snowflake.Snowflake(guildID.String()))
 }
 
-func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.AudioTrack) (CloseType, error) {
+func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.AudioTrack) (CloseEvent, error) {
 	n := l.l.BestNode()
 	if n == nil {
-		return TrackEnd, fmt.Errorf("node doesn't exist")
+		return CloseEvent{Type: TrackEnd}, fmt.Errorf("node doesn't exist")
 	}
 
 	p := l.l.Player(snowflake.Snowflake(guildID.String()))
 	if p == nil {
-		return TrackEnd, ErrNoPlayer
+		return CloseEvent{Type: TrackEnd}, ErrNoPlayer
 	}
 
-	done := make(chan CloseType)
+	done := make(chan CloseEvent)
 	listener := closeListener{quit: done}
 	p.AddListener(listener)
 
 	err := p.Play(t)
 	if err != nil {
-		return TrackEnd, err
+		return CloseEvent{Type: TrackEnd}, err
 	}
 
-	ct := TrackEnd
+	ce := CloseEvent{Type: TrackEnd}
 	select {
 	case <-ctx.Done():
 	case <-time.After(t.Info().Length + 30*time.Second):
-	case t := <-done:
-		ct = t
+	case e := <-done:
+		ce = e
 	}
 
 	p.RemoveListener(listener)
 	close(done)
 
-	return ct, p.Stop()
+	return ce, p.Stop()
 }
 
 func (l *Lava) Pause(guildID discord.GuildID) error {
