@@ -14,7 +14,7 @@ func TestMove(t *testing.T) {
 	q.l.PushBack("koi")
 
 	// Move to front
-	err := q.Move(4, 0)
+	_, err := q.Move(4, 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -27,7 +27,7 @@ func TestMove(t *testing.T) {
 	}
 
 	// Move to back
-	err = q.Move(0, 4)
+	_, err = q.Move(0, 4)
 	if err != nil {
 		t.Error(err)
 	}
@@ -40,7 +40,7 @@ func TestMove(t *testing.T) {
 	}
 
 	// Move to Middle
-	err = q.Move(4, 1)
+	_, err = q.Move(4, 1)
 	if err != nil {
 		t.Error(err)
 	}
