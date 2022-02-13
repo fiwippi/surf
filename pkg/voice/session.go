@@ -419,15 +419,14 @@ func (s *session) NowPlaying() (string, error) {
 	}
 
 	if s.np == nil {
-		return "", errors.New("no track is currently playing")
+		return "No track currently playing", nil
 	}
 	pos, err := s.lava.Position(s.ctx.GID)
 	if err != nil {
 		return "", err
 	}
-	resp := fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title, s.np.Info().Author,
-		pretty.Duration(pos), pretty.Duration(s.np.Info().Length))
-	return resp, nil
+	return fmt.Sprintf("`%s` by `%s` - `%s`/`%s`\n", s.np.Info().Title, s.np.Info().Author,
+		pretty.Duration(pos), pretty.Duration(s.np.Info().Length)), nil
 }
 
 func (s *session) ClearQueue() {
