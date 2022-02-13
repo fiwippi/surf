@@ -404,9 +404,10 @@ func (s *session) Queue(page int) (string, error) {
 	for i, t := range s.queue.Tracks() {
 		if i >= start && i <= end {
 			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author, t.Info().Title)))
-
 		}
 	}
+	resp.WriteRune('\n')
+	resp.WriteString(fmt.Sprintf("Page: `%d`/`%d`", page, int(maxPages)))
 	return resp.String(), nil
 }
 
