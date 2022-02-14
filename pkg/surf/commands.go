@@ -90,6 +90,11 @@ var commands = []api.CreateCommandData{
 				Description: "Queue position of track",
 				Required:    true,
 			},
+			&discord.IntegerOption{
+				OptionName:  "end",
+				Description: "Remove up to and including this position",
+				Required:    false,
+			},
 		},
 	},
 	{

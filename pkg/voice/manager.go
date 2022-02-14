@@ -228,7 +228,17 @@ func (m *Manager) Remove(ctx SessionContext) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.Remove(i - 1)
+
+	j := i
+	if ctx.HasSecondArg() {
+		var err error
+		j, err = strconv.Atoi(ctx.SecondArg())
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return s.Remove(i-1, j-1)
 }
 
 func (m *Manager) Move(ctx SessionContext) (string, error) {

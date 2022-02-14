@@ -404,7 +404,7 @@ func (s *session) Queue(page int) (string, error) {
 	if s.queue.Len() == 0 {
 		return "No items in queue", nil
 	}
-	maxPages := max(1, math.Ceil(float64(s.queue.Len())/25.0))
+	maxPages := math.Max(1, math.Ceil(float64(s.queue.Len())/25.0))
 	if page < 1 || float64(page) > maxPages {
 		return "", fmt.Errorf("invalid queue page: %d", page)
 	}
@@ -454,18 +454,22 @@ func (s *session) ClearQueue() {
 	s.queue.Init()
 }
 
-func (s *session) Remove(i int) (string, error) {
+func (s *session) Remove(i, j int) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closing {
 		return "", ErrSessionClosed
 	}
 
-	t, err := s.queue.Remove(i)
+	tracks, err := s.queue.Remove(i, j)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Removed %s", lava.FmtTrack(t)), nil
+
+	if len(tracks) > 1 {
+		return fmt.Sprintf("Removed `%d` tracks", len(tracks)), nil
+	}
+	return fmt.Sprintf("Removed %s", lava.FmtTrack(tracks[0])), nil
 }
 
 func (s *session) Move(i, j int) (string, error) {
@@ -496,13 +500,6 @@ func (s *session) Shuffle() {
 }
 
 // Util
-
-func max(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
 
 func isSignalKilled(err error) bool {
 	exitErr, ok := err.(*exec.ExitError)

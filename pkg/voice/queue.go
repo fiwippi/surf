@@ -38,18 +38,27 @@ func (q *queue) Push(t lavalink.AudioTrack) {
 	q.l.PushBack(t)
 }
 
-func (q *queue) Remove(i int) (lavalink.AudioTrack, error) {
+func (q *queue) Remove(i, j int) ([]lavalink.AudioTrack, error) {
 	if i < 0 || i >= q.Len() {
 		return nil, errors.New("element does not exist")
 	}
+	if j < i {
+		return nil, errors.New("cannot remove in negative range")
+	}
+
+	removed := make([]lavalink.AudioTrack, 0)
 
 	count := 0
-	for e := q.l.Front(); e != nil; e = e.Next() {
-		if i == count {
-			q.l.Remove(e)
-			return e.Value.(lavalink.AudioTrack), nil
+	for e := q.l.Front(); e != nil; count++ {
+		tmp := e
+		e = e.Next()
+		if count >= i && count <= j {
+			q.l.Remove(tmp)
+			removed = append(removed, tmp.Value.(lavalink.AudioTrack))
 		}
-		count++
+	}
+	if len(removed) > 0 {
+		return removed, nil
 	}
 
 	panic(fmt.Errorf("queue element '%d' should exist", i))

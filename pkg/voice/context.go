@@ -46,6 +46,10 @@ func (ctx *SessionContext) HasFirstArg() bool {
 	return len(ctx.options) >= 1
 }
 
+func (ctx *SessionContext) HasSecondArg() bool {
+	return len(ctx.options) >= 2
+}
+
 func (ctx *SessionContext) FirstArg() string {
 	if len(ctx.options) < 1 {
 		panic(errors.New("not enough args for first arg"))
