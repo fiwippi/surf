@@ -86,25 +86,23 @@ func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, 
 // Internal
 
 func (s *session) sendTyping() {
-	if s.closing {
-		return
-	}
-
-	err := s.state.Typing(s.ctx.Text)
-	if err != nil {
-		s.log.Error().Err(err).Interface("channel", s.ctx.Text).Msg("failed to send typing")
+	sstate, slog, sctx := s.state, s.log, s.ctx
+	if sstate != nil {
+		err := sstate.Typing(sctx.Text)
+		if err != nil {
+			slog.Error().Err(err).Interface("channel", sctx.Text).Msg("failed to send typing")
+		}
 	}
 }
 
 func (s *session) sendMessage(content string, embeds ...discord.Embed) {
-	if s.closing {
-		return
-	}
-
-	_, err := s.state.SendMessage(s.ctx.Text, content, embeds...)
-	if err != nil {
-		s.log.Error().Err(err).Str("content", content).Interface("channel", s.ctx.Text).
-			Interface("embeds", embeds).Msg("failed to send message")
+	sstate, slog, sctx := s.state, s.log, s.ctx
+	if sstate != nil {
+		_, err := sstate.SendMessage(sctx.Text, content, embeds...)
+		if err != nil {
+			slog.Error().Err(err).Str("content", content).Interface("channel", sctx.Text).
+				Interface("embeds", embeds).Msg("failed to send message")
+		}
 	}
 }
 
@@ -171,7 +169,7 @@ func (s *session) processVoice() {
 			// e.g. because there was an exception or it's stuck, then we need
 			// to leave voice to reset the websocket state
 			s.sendMessage(fmt.Sprintf("Error playing: %s", lava.FmtTrack(t)))
-			s.log.Debug().Interface("event_type", ce.Type).Str("reason", ce.Reason).Msg("track did not end with lava.TrackEnd")
+			s.log.Debug().Str("event_type", ce.Type.String()).Str("reason", ce.Reason).Msg("track did not end with lava.TrackEnd")
 			err := s.Leave()
 			if err != nil {
 				s.log.Error().Err(err).Msg("failed to leave voice due invalid track end reason")

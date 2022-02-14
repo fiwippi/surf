@@ -8,9 +8,8 @@ import (
 
 type CloseType int
 
-type CloseEvent struct {
-	Type   CloseType
-	Reason string
+func (ct CloseType) String() string {
+	return [...]string{"TrackEnd", "TrackException", "TrackStuck", "WebsocketClosed"}[ct]
 }
 
 const (
@@ -20,11 +19,16 @@ const (
 	WebsocketClosed
 )
 
-var _ lavalink.PlayerEventListener = (*closeListener)(nil)
+type CloseEvent struct {
+	Type   CloseType
+	Reason string
+}
 
 type closeListener struct {
 	quit chan CloseEvent
 }
+
+var _ lavalink.PlayerEventListener = (*closeListener)(nil)
 
 func (cl closeListener) OnPlayerPause(p lavalink.Player) {}
 
