@@ -14,6 +14,7 @@ import (
 	simpleLog "github.com/DisgoOrg/log"
 	"github.com/DisgoOrg/snowflake"
 	"github.com/diamondburned/arikawa/v3/discord"
+	edlib "github.com/hbollon/go-edlib"
 	"golang.org/x/time/rate"
 
 	"surf/internal/log"
@@ -29,8 +30,9 @@ type Lava struct {
 }
 
 type search struct {
-	T    lavalink.AudioTrack
-	Diff time.Duration
+	T          lavalink.AudioTrack
+	TimeDiff   time.Duration
+	StringDiff int
 }
 
 type orderedTrack struct {
@@ -106,7 +108,7 @@ func (l *Lava) search(ctx context.Context, searchType lavalink.SearchType, query
 	return parsed, nil
 }
 
-func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searchType lavalink.SearchType, useArtist, shouldSort bool) (lavalink.AudioTrack, error) {
+func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searchType lavalink.SearchType, useArtist, useSimilarity bool) (lavalink.AudioTrack, error) {
 	searchTerm := fmt.Sprintf("%s %s", st.Artist, st.Title)
 	tracks, err := l.search(ctx, searchType, searchTerm)
 	if err != nil {
@@ -123,11 +125,12 @@ func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searc
 
 		containsArtist := strings.Contains(strings.ToLower(track.Info().Author), strings.ToLower(st.Artist))
 		containsTitle := strings.Contains(strings.ToLower(track.Info().Title), strings.ToLower(st.Title))
+		similarity := edlib.DamerauLevenshteinDistance(st.Title, track.Info().Title) + edlib.DamerauLevenshteinDistance(st.Artist, track.Info().Author)
 		if (containsArtist && containsTitle) || (!useArtist && containsTitle) {
-			fmt.Println(track.Info().Title, track.Info().Length)
 			filtered = append(filtered, search{
-				T:    track,
-				Diff: diff,
+				T:          track,
+				TimeDiff:   diff,
+				StringDiff: similarity,
 			})
 		}
 	}
@@ -135,9 +138,13 @@ func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searc
 		return nil, errors.New("could not find track")
 	}
 
-	if shouldSort {
+	if !useSimilarity {
 		sort.SliceStable(filtered, func(i, j int) bool {
-			return filtered[i].Diff < filtered[j].Diff
+			return filtered[i].TimeDiff < filtered[j].TimeDiff
+		})
+	} else {
+		sort.SliceStable(filtered, func(i, j int) bool {
+			return filtered[i].StringDiff < filtered[j].StringDiff
 		})
 	}
 
@@ -145,15 +152,11 @@ func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searc
 }
 
 func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.AudioTrack, error) {
-	track, err := l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutubeMusic, true, true)
+	track, err := l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutubeMusic, true, false)
 	if err == nil {
 		return track, nil
 	}
-	track, err = l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutube, false, false)
-	if err == nil {
-		return track, nil
-	}
-	track, err = l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeSoundCloud, false, false)
+	track, err = l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutube, false, true)
 	if err == nil {
 		return track, nil
 	}

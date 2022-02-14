@@ -7,6 +7,7 @@ require (
 	github.com/DisgoOrg/log v1.1.3
 	github.com/DisgoOrg/snowflake v1.0.4
 	github.com/diamondburned/arikawa/v3 v3.0.0-rc.4
+	github.com/hbollon/go-edlib v1.6.0
 	github.com/joho/godotenv v1.4.0
 	github.com/rs/zerolog v1.26.1
 	github.com/zmb3/spotify/v2 v2.0.1
