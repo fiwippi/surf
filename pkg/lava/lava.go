@@ -106,17 +106,11 @@ func (l *Lava) search(ctx context.Context, searchType lavalink.SearchType, query
 	return parsed, nil
 }
 
-func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.AudioTrack, error) {
-	// First we perform the search
-	var err error
-	var tracks []lavalink.AudioTrack
+func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searchType lavalink.SearchType, useArtist, shouldSort bool) (lavalink.AudioTrack, error) {
 	searchTerm := fmt.Sprintf("%s %s", st.Artist, st.Title)
-	tracks, err = l.search(ctx, lavalink.SearchTypeYoutubeMusic, searchTerm)
+	tracks, err := l.search(ctx, searchType, searchTerm)
 	if err != nil {
-		tracks, err = l.search(ctx, lavalink.SearchTypeYoutube, searchTerm)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	// Now filter the searches
@@ -129,7 +123,8 @@ func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.Aud
 
 		containsArtist := strings.Contains(strings.ToLower(track.Info().Author), strings.ToLower(st.Artist))
 		containsTitle := strings.Contains(strings.ToLower(track.Info().Title), strings.ToLower(st.Title))
-		if containsArtist && containsTitle {
+		if (containsArtist && containsTitle) || (!useArtist && containsTitle) {
+			fmt.Println(track.Info().Title, track.Info().Length)
 			filtered = append(filtered, search{
 				T:    track,
 				Diff: diff,
@@ -137,14 +132,32 @@ func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.Aud
 		}
 	}
 	if len(filtered) == 0 {
-		return tracks[0], nil
+		return nil, errors.New("could not find track")
 	}
 
-	// If we managed to find some tracks
-	sort.SliceStable(filtered, func(i, j int) bool {
-		return filtered[i].Diff < filtered[j].Diff
-	})
+	if shouldSort {
+		sort.SliceStable(filtered, func(i, j int) bool {
+			return filtered[i].Diff < filtered[j].Diff
+		})
+	}
+
 	return filtered[0].T, nil
+}
+
+func (l *Lava) searchSpotify(ctx context.Context, st spotifyTrack) (lavalink.AudioTrack, error) {
+	track, err := l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutubeMusic, true, true)
+	if err == nil {
+		return track, nil
+	}
+	track, err = l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeYoutube, false, false)
+	if err == nil {
+		return track, nil
+	}
+	track, err = l.searchSpotifyFiltered(ctx, st, lavalink.SearchTypeSoundCloud, false, false)
+	if err == nil {
+		return track, nil
+	}
+	return nil, err
 }
 
 func (l *Lava) link(ctx context.Context, link string) ([]lavalink.AudioTrack, error) {
@@ -188,48 +201,48 @@ func (l *Lava) parseTracks(tracks ...lavalink.LoadResultAudioTrack) ([]lavalink.
 	return parsed, nil
 }
 
-func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, error) {
+func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, int, error) {
 	_, err := url.ParseRequestURI(text)
 	if err != nil {
 		// First search youtube music
 		t, err := l.search(ctx, lavalink.SearchTypeYoutubeMusic, text)
 		if err == nil {
-			return []lavalink.AudioTrack{t[0]}, nil
+			return []lavalink.AudioTrack{t[0]}, 0, nil
 		}
 		// Second search youtube
 		t, err = l.search(ctx, lavalink.SearchTypeYoutube, text)
 		if err == nil {
-			return []lavalink.AudioTrack{t[0]}, nil
+			return []lavalink.AudioTrack{t[0]}, 0, nil
 		}
 		// Third search soundcloud
 		t, err = l.search(ctx, lavalink.SearchTypeSoundCloud, text)
 		if err == nil {
-			return []lavalink.AudioTrack{t[0]}, nil
+			return []lavalink.AudioTrack{t[0]}, 0, nil
 		}
-		return nil, err
+		return nil, 0, err
 	} else {
 		// If we have a URL we first check if it's a spotify url
 		if !strings.Contains(text, "spotify.com") {
 			// If we just have a normal link
 			tracks, err := l.link(ctx, text)
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
-			return tracks, nil
+			return tracks, 0, nil
 		}
 
 		// If it is a spotify URL we attempt to download the tracks
 		if l.s == nil {
-			return nil, errors.New("spotify is unsupported")
+			return nil, 0, errors.New("spotify is unsupported")
 		}
 		queries, err := l.s.Download(ctx, text)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		// Only allow processing up to 3000 tracks
 		if len(queries) > 3000 {
-			return nil, fmt.Errorf("spotify tracks length is larger than max limit of %d: %d", 3000, len(queries))
+			return nil, 0, fmt.Errorf("spotify tracks length is larger than max limit of %d: %d", 3000, len(queries))
 		}
 
 		// Now we search for the tracks on youtube using spotify metadata
@@ -238,7 +251,7 @@ func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, e
 		for i, q := range queries {
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, 0, ctx.Err()
 			default:
 			}
 
@@ -267,7 +280,7 @@ func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, e
 
 		// Exit if no tracks
 		if len(ordered) == 0 {
-			return nil, errors.New("no tracks found")
+			return nil, 0, nil
 		}
 
 		// Sort and convert to tracks
@@ -278,7 +291,7 @@ func (l *Lava) Query(ctx context.Context, text string) ([]lavalink.AudioTrack, e
 		for i := range ordered {
 			tracks[i] = ordered[i].t
 		}
-		return tracks, nil
+		return tracks, len(queries) - len(ordered), nil
 	}
 }
 

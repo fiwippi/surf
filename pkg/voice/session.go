@@ -304,7 +304,7 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	dlCtx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Minute)
 	s.playCancelFunc = cancelFunc
 	defer cancelFunc()
-	tracks, err := s.lava.Query(dlCtx, ctx.FirstArg())
+	tracks, notFound, err := s.lava.Query(dlCtx, ctx.FirstArg())
 	if err != nil {
 		return "", fmt.Errorf("error finding track from link/text: %w", err)
 	}
@@ -315,6 +315,11 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 		return "", dlCtx.Err()
 	}
 
+	// We need to check if the queue is empty before we enqueue so we can decide
+	// what message to send to the user later
+	queueEmpty := s.queue.Len() == 0
+	playingTrack := s.np != nil
+
 	// Reply if playlist of tracks
 	for _, t := range tracks {
 		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("queued track")
@@ -322,8 +327,14 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	}
 
 	if len(tracks) > 1 {
+		if notFound > 0 {
+			return fmt.Sprintf("Queued: `%d` tracks, Couldn't find `%d` tracks", len(tracks), notFound), nil
+		}
 		return fmt.Sprintf("Queued: `%d` tracks", len(tracks)), nil
 	} else {
+		if queueEmpty && !playingTrack {
+			return "Queued: `1` track", nil
+		}
 		return fmt.Sprintf("Queued: %s", lava.FmtTrack(tracks[0])), nil
 	}
 }
@@ -410,7 +421,7 @@ func (s *session) Queue(page int) (string, error) {
 		}
 	}
 	resp.WriteRune('\n')
-	resp.WriteString(fmt.Sprintf("Page: `%d`/`%d`, Queue length: %s", page, int(maxPages), pretty.Duration(total)))
+	resp.WriteString(fmt.Sprintf("Page: `%d`/`%d`, Length: `%s`", page, int(maxPages), pretty.Duration(total)))
 	return resp.String(), nil
 }
 
@@ -471,7 +482,7 @@ func (s *session) Move(i, j int) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("Moved %s to position `%d`", lava.FmtTrack(t), j), nil
+	return fmt.Sprintf("Moved %s to position `%d`", lava.FmtTrack(t), j+1), nil
 }
 
 func (s *session) Shuffle() {
