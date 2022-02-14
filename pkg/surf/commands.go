@@ -36,6 +36,17 @@ var commands = []api.CreateCommandData{
 		},
 	},
 	{
+		Name:        "playnext",
+		Description: "Play a track or adds it to the front of the queue",
+		Options: []discord.CommandOption{
+			&discord.StringOption{
+				OptionName:  "track",
+				Description: "Search term or URL link to track",
+				Required:    true,
+			},
+		},
+	},
+	{
 		Name:        "skip",
 		Description: "Skip the currently playing track",
 	},
@@ -199,7 +210,18 @@ func (c *client) Play(ctx voice.SessionContext) {
 	c.textResp(ctx, "N/A", false, true)
 	resp, err := c.manager.Play(ctx)
 	if err != nil {
-		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play youtube track")
+		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play track")
+		c.editResp(ctx, "Failed...")
+	} else {
+		c.editResp(ctx, resp)
+	}
+}
+
+func (c *client) Playnext(ctx voice.SessionContext) {
+	c.textResp(ctx, "N/A", false, true)
+	resp, err := c.manager.PlayNext(ctx)
+	if err != nil {
+		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play track next")
 		c.editResp(ctx, "Failed...")
 	} else {
 		c.editResp(ctx, resp)

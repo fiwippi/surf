@@ -94,23 +94,11 @@ func (m *Manager) LeaveVoice(ctx SessionContext) error {
 }
 
 func (m *Manager) Play(ctx SessionContext) (string, error) {
-	m.mu.Lock()
+	return m.play(ctx, false)
+}
 
-	s, err := m.joinVoice(ctx, false)
-	if err != nil {
-		m.mu.Unlock()
-		return "", err
-	}
-	m.mu.Unlock()
-
-	// Play might block we we unlock the mutex to allow
-	// the session to receive other commands, e.g. leave
-	resp, err := s.Play(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return resp, nil
+func (m *Manager) PlayNext(ctx SessionContext) (string, error) {
+	return m.play(ctx, true)
 }
 
 func (m *Manager) Skip(ctx SessionContext) error {
@@ -331,4 +319,23 @@ func (m *Manager) createSession(ctx SessionContext) (*session, error) {
 
 func (m *Manager) deleteSession(ctx SessionContext) {
 	delete(m.voice, ctx.GID)
+}
+
+func (m *Manager) play(ctx SessionContext, next bool) (string, error) {
+	m.mu.Lock()
+	s, err := m.joinVoice(ctx, false)
+	if err != nil {
+		m.mu.Unlock()
+		return "", err
+	}
+	m.mu.Unlock()
+
+	// Play might block we we unlock the mutex to allow
+	// the session to receive other commands, e.g. leave
+	resp, err := s.Play(ctx, next)
+	if err != nil {
+		return "", err
+	}
+
+	return resp, nil
 }

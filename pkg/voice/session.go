@@ -285,7 +285,7 @@ func (s *session) Leave() error {
 	return nil
 }
 
-func (s *session) Play(ctx SessionContext) (string, error) {
+func (s *session) Play(ctx SessionContext, next bool) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closing {
@@ -320,12 +320,16 @@ func (s *session) Play(ctx SessionContext) (string, error) {
 	queueEmpty := s.queue.Len() == 0
 	playingTrack := s.np != nil
 
-	// Reply if playlist of tracks
 	for _, t := range tracks {
 		s.log.Debug().Str("title", t.Info().Title).Str("author", t.Info().Author).Msg("queued track")
-		s.queue.Push(t)
+	}
+	if next {
+		s.queue.PushFront(tracks...)
+	} else {
+		s.queue.PushBack(tracks...)
 	}
 
+	// Reply if playlist of tracks
 	if len(tracks) > 1 {
 		if notFound > 0 {
 			return fmt.Sprintf("Queued: `%d` tracks, Couldn't find `%d` tracks", len(tracks), notFound), nil

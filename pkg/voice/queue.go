@@ -34,8 +34,18 @@ func (q *queue) Pop() (lavalink.AudioTrack, error) {
 	return e.Value.(lavalink.AudioTrack), nil
 }
 
-func (q *queue) Push(t lavalink.AudioTrack) {
-	q.l.PushBack(t)
+func (q *queue) PushFront(tracks ...lavalink.AudioTrack) {
+	newTracks := list.New()
+	for _, t := range tracks {
+		newTracks.PushBack(t)
+	}
+	q.l.PushFrontList(newTracks)
+}
+
+func (q *queue) PushBack(tracks ...lavalink.AudioTrack) {
+	for _, t := range tracks {
+		q.l.PushBack(t)
+	}
 }
 
 func (q *queue) Remove(i, j int) ([]lavalink.AudioTrack, error) {
