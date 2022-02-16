@@ -109,7 +109,7 @@ func (l *Lava) search(ctx context.Context, searchType lavalink.SearchType, query
 }
 
 func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searchType lavalink.SearchType, useArtist, useSimilarity bool) (lavalink.AudioTrack, error) {
-	searchTerm := fmt.Sprintf("%s %s", st.Artist, st.Title)
+	searchTerm := fmt.Sprintf("%s - %s", st.Artist, st.Title)
 	tracks, err := l.search(ctx, searchType, searchTerm)
 	if err != nil {
 		return nil, err
@@ -123,9 +123,27 @@ func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searc
 			diff *= -1
 		}
 
-		containsArtist := strings.Contains(strings.ToLower(track.Info().Author), strings.ToLower(st.Artist))
-		containsTitle := strings.Contains(strings.ToLower(track.Info().Title), strings.ToLower(st.Title))
-		similarity := edlib.DamerauLevenshteinDistance(st.Title, track.Info().Title) + edlib.DamerauLevenshteinDistance(st.Artist, track.Info().Author)
+		// If the found track's author is the spotify artist
+		lowerArtist := strings.ToLower(st.Artist)
+		lowerArtistSt := strings.ToLower(track.Info().Author)
+		containsArtist := strings.Contains(lowerArtist, lowerArtistSt)
+		// If the found track contains the spotify track's title
+		// For contains the title we also check the case for split hyphens
+		lowerTitle := strings.ToLower(track.Info().Title)
+		lowerTitleSt := strings.ToLower(st.Title)
+		titleA := strings.Contains(lowerTitle, lowerTitleSt)
+		titleB := strings.Contains(lowerTitle, strings.ReplaceAll(lowerTitleSt, "-", " "))
+		containsTitle := titleA || titleB
+		// How similar both track names are, takes into account
+		// (youtube) videos where the artist name is also in the
+		// video
+		simArtist := edlib.DamerauLevenshteinDistance(lowerArtistSt, lowerArtist)
+		simA := edlib.DamerauLevenshteinDistance(st.Title, track.Info().Title) + simArtist
+		simB := edlib.DamerauLevenshteinDistance(searchTerm, track.Info().Title) + simArtist
+		similarity := simA
+		if simB < simA {
+			similarity = simB
+		}
 		if (containsArtist && containsTitle) || (!useArtist && containsTitle) {
 			filtered = append(filtered, search{
 				T:          track,
