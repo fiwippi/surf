@@ -424,7 +424,8 @@ func (s *session) Queue(page int) (string, error) {
 	for i, t := range s.queue.Tracks() {
 		total += lava.ParseDuration(t.Info().Length)
 		if i >= start && i <= end {
-			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s`", t.Info().Author, t.Info().Title)))
+			resp.WriteString(fmt.Sprintf("%d. %s\n", i+1, fmt.Sprintf("`%s` - `%s (%s)`",
+				t.Info().Author, t.Info().Title, pretty.Duration(lava.ParseDuration(t.Info().Length)))))
 		}
 	}
 	resp.WriteRune('\n')
