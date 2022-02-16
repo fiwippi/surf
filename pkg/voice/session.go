@@ -64,11 +64,15 @@ type session struct {
 	// long periods of time so we keep track of it's cancel
 	// func so we can cancel the operation so we can leave etc.
 	playCancelFunc context.CancelFunc
+	// Manager so that the session can delete itself
+	// from the manager if needed
+	manager *Manager
 }
 
-func newSession(ctx SessionContext, s *state.State, lava *lava.Lava) (*session, error) {
+func newSession(ctx SessionContext, s *state.State, lava *lava.Lava, m *Manager) (*session, error) {
 	ss := &session{
 		state:          s,
+		manager:        m,
 		lava:           lava,
 		queue:          newQueue(),
 		abort:          make(chan struct{}),
@@ -274,6 +278,7 @@ func (s *session) Leave() error {
 	if err != nil {
 		return err
 	}
+	s.manager.deleteSession(s.ctx)
 
 	// Clear the queue and other data
 	s.queue.Init()
