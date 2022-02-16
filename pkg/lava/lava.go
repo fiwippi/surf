@@ -323,7 +323,7 @@ func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.Aud
 		return CloseEvent{Type: TrackEnd}, err
 	}
 
-	ce := CloseEvent{Type: TrackEnd, Reason: "context done"}
+	ce := CloseEvent{Type: TrackEnd, Error: "context done", Reason: "Context done"}
 	select {
 	case <-ctx.Done():
 	case e := <-done:

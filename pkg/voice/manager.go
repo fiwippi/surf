@@ -309,7 +309,7 @@ func (m *Manager) getSession(ctx SessionContext) (*session, error) {
 }
 
 func (m *Manager) createSession(ctx SessionContext) (*session, error) {
-	s, err := newSession(ctx, m.state, m.lava)
+	s, err := newSession(ctx, m.state, m.lava, m)
 	if err != nil {
 		return nil, err
 	}

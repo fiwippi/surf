@@ -21,7 +21,8 @@ const (
 
 type CloseEvent struct {
 	Type   CloseType
-	Reason string
+	Reason string // Short error to send to the user
+	Error  string // Long error to be used by the program
 }
 
 type closeListener struct {
@@ -41,6 +42,7 @@ func (cl closeListener) OnTrackStart(p lavalink.Player, t lavalink.AudioTrack) {
 func (cl closeListener) OnTrackEnd(p lavalink.Player, t lavalink.AudioTrack, endReason lavalink.AudioTrackEndReason) {
 	cl.quit <- CloseEvent{
 		Type:   TrackEnd,
+		Error:  string(endReason),
 		Reason: string(endReason),
 	}
 }
@@ -48,6 +50,7 @@ func (cl closeListener) OnTrackEnd(p lavalink.Player, t lavalink.AudioTrack, end
 func (cl closeListener) OnTrackException(p lavalink.Player, t lavalink.AudioTrack, e lavalink.FriendlyException) {
 	cl.quit <- CloseEvent{
 		Type:   TrackException,
+		Error:  e.Error(),
 		Reason: e.Error(),
 	}
 }
@@ -55,13 +58,15 @@ func (cl closeListener) OnTrackException(p lavalink.Player, t lavalink.AudioTrac
 func (cl closeListener) OnTrackStuck(p lavalink.Player, t lavalink.AudioTrack, thresholdMs lavalink.Duration) {
 	cl.quit <- CloseEvent{
 		Type:   TrackStuck,
-		Reason: fmt.Sprintf("threshold ms: %s", thresholdMs.String()),
+		Error:  fmt.Sprintf("threshold ms: %s", thresholdMs.String()),
+		Reason: "Track stuck",
 	}
 }
 
 func (cl closeListener) OnWebSocketClosed(p lavalink.Player, code int, reason string, byRemote bool) {
 	cl.quit <- CloseEvent{
 		Type:   WebsocketClosed,
-		Reason: fmt.Sprintf("code: %d reason: %s byRemote: %v", code, reason, byRemote),
+		Error:  fmt.Sprintf("code: %d reason: %s byRemote: %v", code, reason, byRemote),
+		Reason: reason,
 	}
 }
