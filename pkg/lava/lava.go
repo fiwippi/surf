@@ -139,9 +139,13 @@ func (l *Lava) searchSpotifyFiltered(ctx context.Context, st spotifyTrack, searc
 		titleA := strings.Contains(lowerTitle, lowerTitleSt)
 		titleB := strings.Contains(lowerTitle, strings.ReplaceAll(lowerTitleSt, "-", " "))
 		containsTitle := titleA || titleB
-		// Filter out common garbage searches, e.g. covers of songs
-		if !strings.Contains(lowerTitleSt, "cover") && strings.Contains(lowerTitle, "cover") {
-			containsTitle = false
+		// Filter out common garbage searches, e.g. covers of songs, live versions
+		if !strings.Contains(lowerTitleSt, "cover") {
+			a := strings.Contains(lowerTitle, "cover")
+			b := strings.Contains(lowerTitle, "live")
+			if a || b {
+				containsTitle = false
+			}
 		}
 		// How similar both track names are
 		simArtist := edlib.DamerauLevenshteinDistance(lowerArtistSt, lowerArtist)
@@ -344,7 +348,7 @@ func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.Aud
 		return CloseEvent{Type: TrackEnd}, err
 	}
 
-	ce := CloseEvent{Type: TrackEnd, Error: "context done", Reason: "Context done"}
+	ce := CloseEvent{Type: TrackEnd, Error: "context done", Reason: "Timeout"}
 	select {
 	case <-ctx.Done():
 	case e := <-done:
@@ -354,6 +358,7 @@ func (l *Lava) Play(ctx context.Context, guildID discord.GuildID, t lavalink.Aud
 	p.RemoveListener(listener)
 	close(done)
 
+	ce.Reason = strings.TrimSuffix(ce.Reason, ".")
 	return ce, p.Stop()
 }
 
