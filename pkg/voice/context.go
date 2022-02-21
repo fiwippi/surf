@@ -11,9 +11,11 @@ import (
 
 type SessionContext struct {
 	// Guild where the message was sent
-	GID discord.GuildID
-	// Voice channel the user is in
-	Voice discord.ChannelID
+	GID   discord.GuildID
+	Guild string
+	// VID is the voice channel the user is in
+	VID   discord.ChannelID
+	Voice string
 	// Text channel the message was typed in
 	Text discord.ChannelID
 	// User who initiated the interaction
@@ -32,9 +34,20 @@ func CreateContext(s *state.State, e *gateway.InteractionCreateEvent, ci *discor
 		return SessionContext{}, err
 	}
 
+	g, err := s.Guild(e.GuildID)
+	if err != nil {
+		return SessionContext{}, err
+	}
+	ch, err := s.Channel(vs.ChannelID)
+	if err != nil {
+		return SessionContext{}, err
+	}
+
 	return SessionContext{
 		GID:     e.GuildID,
-		Voice:   vs.ChannelID,
+		Guild:   g.Name,
+		VID:     vs.ChannelID,
+		Voice:   ch.Name,
 		Text:    e.ChannelID,
 		User:    e.Sender(),
 		Event:   e,

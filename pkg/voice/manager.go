@@ -33,13 +33,48 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 		return nil, err
 	}
 
+	m := &Manager{
+		lava:  l,
+		state: s,
+		voice: make(map[discord.GuildID]*session),
+	}
+
 	s.AddHandler(func(e *gateway.VoiceStateUpdateEvent) {
+		// Send the update to lavalink
 		chID := snowflake.Snowflake(e.ChannelID.String())
 		l.VoiceStateUpdate(lavalink.VoiceStateUpdate{
 			GuildID:   snowflake.Snowflake(e.GuildID.String()),
 			ChannelID: &chID,
 			SessionID: e.SessionID,
 		})
+
+		// Update the sessions last timestamp when it had
+		// zero users in the vc if applicable
+		ss, ok := m.voice[e.GuildID]
+		if !ok || (ss != nil && ss.closing) {
+			return
+		}
+
+		states, err := s.VoiceStates(e.GuildID)
+		if err != nil {
+			ss.log.Error().Err(err).Msg("could not voice states")
+			return
+		}
+
+		// Count is the number of users in the voice channel who aren't the bot
+		count := 0
+		for _, st := range states {
+			if e.ChannelID == st.ChannelID && e.UserID != st.UserID {
+				count += 1
+			}
+		}
+
+		if count == 0 {
+			now := time.Now()
+			ss.lastZero = &now
+		} else {
+			ss.lastZero = nil
+		}
 	})
 	s.AddHandler(func(e *gateway.VoiceServerUpdateEvent) {
 		l.VoiceServerUpdate(lavalink.VoiceServerUpdate{
@@ -49,11 +84,7 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 		})
 	})
 
-	return &Manager{
-		lava:  l,
-		state: s,
-		voice: make(map[discord.GuildID]*session),
-	}, nil
+	return m, nil
 }
 
 // Public
@@ -65,7 +96,7 @@ func (m *Manager) SameVoiceChannel(ctx SessionContext) bool {
 		// bot is in the same voice channel as the user
 		return true
 	}
-	return ctx.Voice == s.ctx.Voice
+	return ctx.VID == s.ctx.VID
 }
 
 func (m *Manager) JoinVoice(ctx SessionContext) error {
@@ -295,7 +326,7 @@ func (m *Manager) joinVoice(ctx SessionContext, lock bool) (*session, error) {
 
 func (m *Manager) getSession(ctx SessionContext) (*session, error) {
 	s, ok := m.voice[ctx.GID]
-	if s != nil && ctx.Voice != s.ctx.Voice {
+	if s != nil && ctx.VID != s.ctx.VID {
 		return nil, ErrNotSameVoiceChannel
 	}
 	if s != nil && s.closing {
@@ -332,10 +363,5 @@ func (m *Manager) play(ctx SessionContext, next bool) (string, error) {
 
 	// Play might block we we unlock the mutex to allow
 	// the session to receive other commands, e.g. leave
-	resp, err := s.Play(ctx, next)
-	if err != nil {
-		return "", err
-	}
-
-	return resp, nil
+	return s.Play(ctx, next)
 }

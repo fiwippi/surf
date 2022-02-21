@@ -67,6 +67,11 @@ type session struct {
 	// Manager so that the session can delete itself
 	// from the manager if needed
 	manager *Manager
+	// Ensures the leaving only happens once
+	once sync.Once
+	// Last time since there were zero users in a voice channel
+	// If this was more than 5 minutes ago then the bot leaves due to inactivity
+	lastZero *time.Time
 }
 
 func newSession(ctx SessionContext, s *state.State, lava *lava.Lava, m *Manager) (*session, error) {
@@ -84,6 +89,7 @@ func newSession(ctx SessionContext, s *state.State, lava *lava.Lava, m *Manager)
 
 	go ss.processSignals()
 	go ss.processVoice()
+	go ss.processEmptyVC()
 	return ss, nil
 }
 
@@ -110,6 +116,15 @@ func (s *session) sendMessage(content string, embeds ...discord.Embed) {
 	}
 }
 
+func (s *session) leaveDueToInactivity() {
+	s.sendMessage("Leaving voice due to inactivity")
+	s.log.Debug().Msg("leaving voice due to inactivity")
+	err := s.Leave()
+	if err != nil {
+		s.log.Error().Err(err).Msg("failed to leave voice due to inactivity")
+	}
+}
+
 func (s *session) processSignals() {
 	for {
 		select {
@@ -124,21 +139,32 @@ func (s *session) processSignals() {
 	}
 }
 
+func (s *session) processEmptyVC() {
+	for {
+		time.Sleep(15 * time.Second)
+
+		if s.closing {
+			return
+		} else if s.lastZero != nil && time.Since(*s.lastZero) > defaultInactivityTimeout {
+			s.leaveDueToInactivity()
+		}
+	}
+}
+
 func (s *session) processVoice() {
-	var sleeping time.Duration
+	var sleeping time.Duration // Time since the bot is idle (not playing a track)
 
 	for {
 		// Sleep so we don't abuse CPU cycles
 		time.Sleep(defaultSleep)
-		// Check if the bot has been inactive for too long
+		// Increment the inactivity timeout
 		sleeping += defaultSleep
-		if sleeping > defaultInactivityTimeout {
-			s.sendMessage("Leaving voice due to inactivity")
-			s.log.Debug().Msg("leaving voice due to inactivity")
-			err := s.Leave()
-			if err != nil {
-				s.log.Error().Err(err).Msg("failed to leave voice due to inactivity")
-			}
+
+		// Check if the bot has been inactive for too long
+		a := sleeping > defaultInactivityTimeout
+		b := s.lastZero != nil && time.Since(*s.lastZero) > defaultInactivityTimeout
+		if a || b {
+			s.leaveDueToInactivity()
 		}
 
 		s.mu.Lock()
@@ -219,7 +245,7 @@ func (s *session) pipeVoice(ctx context.Context, t lavalink.AudioTrack) (lava.Cl
 
 func (s *session) Join(ctx SessionContext) error {
 	// Only perform the join if we are on a new voice channel
-	if s.ctx.Voice == ctx.Voice {
+	if s.ctx.VID == ctx.VID {
 		return nil
 	}
 	if s.closing {
@@ -231,7 +257,7 @@ func (s *session) Join(ctx SessionContext) error {
 	defer cancel()
 	err := s.state.Gateway().Send(timeout, &gateway.UpdateVoiceStateCommand{
 		GuildID:   ctx.GID,
-		ChannelID: ctx.Voice,
+		ChannelID: ctx.VID,
 		SelfMute:  false,
 		SelfDeaf:  true,
 	})
@@ -240,7 +266,7 @@ func (s *session) Join(ctx SessionContext) error {
 	}
 
 	s.ctx = ctx
-	s.log = log.With().Uint64("gid", uint64(ctx.GID)).Logger()
+	s.log = log.With().Str("guild", ctx.Guild).Str("channel", ctx.Voice).Logger()
 
 	return nil
 }
@@ -254,38 +280,49 @@ func (s *session) Leave() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Stop writing to the voice state
-	s.cancelPipe()
-	s.abort <- empty
-	close(s.abort)
-	close(s.skip)
+	// Any errors returned from the closing operation
+	var leaveErr error
 
-	// Clear the player
-	err := s.lava.Close(s.ctx.GID)
-	if err != nil {
-		s.log.Error().Err(err).Msg("error closing lava")
-	}
+	// Leaving should only happen once
+	s.once.Do(func() {
+		// Stop writing to the voice state
+		s.cancelPipe()
+		s.abort <- empty
+		close(s.abort)
+		close(s.skip)
 
-	// Leave the server
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err = s.state.Gateway().Send(ctx, &gateway.UpdateVoiceStateCommand{
-		GuildID:   s.ctx.GID,
-		ChannelID: discord.ChannelID(discord.NullSnowflake),
-		SelfMute:  true,
-		SelfDeaf:  true,
+		// Clear the player
+		err := s.lava.Close(s.ctx.GID)
+		if err != nil {
+			s.log.Error().Err(err).Msg("error closing lava")
+		}
+
+		// Leave the server
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err = s.state.Gateway().Send(ctx, &gateway.UpdateVoiceStateCommand{
+			GuildID:   s.ctx.GID,
+			ChannelID: discord.ChannelID(discord.NullSnowflake),
+			SelfMute:  true,
+			SelfDeaf:  true,
+		})
+		if err != nil {
+			leaveErr = err
+			return
+		}
+		s.manager.deleteSession(s.ctx)
+
+		// Clear the queue and other data
+		s.queue.Init()
+		s.queue = nil
+		s.state = nil
+		s.manager = nil
+		s.lastZero = nil
+
+		leaveErr = nil
 	})
-	if err != nil {
-		return err
-	}
-	s.manager.deleteSession(s.ctx)
 
-	// Clear the queue and other data
-	s.queue.Init()
-	s.queue = nil
-	s.state = nil
-
-	return nil
+	return leaveErr
 }
 
 func (s *session) Play(ctx SessionContext, next bool) (string, error) {
@@ -312,7 +349,14 @@ func (s *session) Play(ctx SessionContext, next bool) (string, error) {
 		return "", fmt.Errorf("error finding track from link/text: %w", err)
 	}
 	if len(tracks) == 0 {
-		return "No tracks found", errors.New("no tracks found")
+		// Only spotify queries return a notFound value
+		// greater than zero so if playlists are queried
+		// only a zero will be returned
+		resp := "Tracks not found"
+		if notFound == 0 {
+			resp = "Track not found"
+		}
+		return resp, errors.New("tracks not found")
 	}
 	if dlCtx.Err() != nil {
 		return "", dlCtx.Err()

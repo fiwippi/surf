@@ -177,8 +177,8 @@ func interactionCreateEvent(c *client) interface{} {
 		}
 
 		// Call the command
-		log.Info().Str("user", ctx.User.Username).Str("command", ci.Name).
-			Str("args", ctx.Args()).Str("gid", ctx.GID.String()).Msg("interaction")
+		log.Info().Str("user", ctx.User.Username).Str("command", ci.Name).Str("args", ctx.Args()).
+			Str("guild", ctx.Guild).Str("channel", ctx.Voice).Msg("interaction")
 		args := []reflect.Value{reflect.ValueOf(ctx)}
 		v.Call(args)
 	}
@@ -211,7 +211,7 @@ func (c *client) Play(ctx voice.SessionContext) {
 	resp, err := c.manager.Play(ctx)
 	if err != nil {
 		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play track")
-		c.editResp(ctx, "Failed...")
+		c.editRespFailed(ctx, resp)
 	} else {
 		c.editResp(ctx, resp)
 	}
@@ -222,7 +222,7 @@ func (c *client) Playnext(ctx voice.SessionContext) {
 	resp, err := c.manager.PlayNext(ctx)
 	if err != nil {
 		log.Error().Err(err).Str("track", ctx.FirstArg()).Msg("failed to play track next")
-		c.editResp(ctx, "Failed...")
+		c.editRespFailed(ctx, resp)
 	} else {
 		c.editResp(ctx, resp)
 	}
@@ -361,6 +361,13 @@ func (c *client) textResp(ctx voice.SessionContext, text string, hidden, deferre
 		log.Error().Err(err).Interface("id", ctx.Event.ID).Str("resp", text).Msg("failed to send text response")
 		return
 	}
+}
+
+func (c *client) editRespFailed(ctx voice.SessionContext, resp string) {
+	if resp == "" {
+		resp = "Failed..."
+	}
+	c.editResp(ctx, resp)
 }
 
 func (c *client) editResp(ctx voice.SessionContext, text string) {
