@@ -64,14 +64,16 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 		// Count is the number of users in the voice channel who aren't the bot
 		count := 0
 		for _, st := range states {
-			if e.ChannelID == st.ChannelID && e.UserID != st.UserID {
+			if e.ChannelID == st.ChannelID {
 				count += 1
 			}
 		}
+		// Minus one for the bot
+		count -= 1
 
-		ss.log.Debug().Int("count", count).Msg("voice state update")
+		ss.log.Debug().Int("guild_count", len(states)).Int("channel_count", count).Msg("voice state update")
 
-		if count == 0 {
+		if count <= 0 {
 			now := time.Now()
 			ss.lastZero = &now
 		} else {
