@@ -57,7 +57,7 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 
 		states, err := s.VoiceStates(e.GuildID)
 		if err != nil {
-			ss.log.Error().Err(err).Msg("could not voice states")
+			ss.log.Error().Err(err).Msg("could not get voice states")
 			return
 		}
 
@@ -68,6 +68,8 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 				count += 1
 			}
 		}
+
+		ss.log.Debug().Int("count", count).Msg("voice state update")
 
 		if count == 0 {
 			now := time.Now()

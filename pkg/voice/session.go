@@ -146,7 +146,9 @@ func (s *session) processEmptyVC() {
 		if s.closing {
 			return
 		} else if s.lastZero != nil && time.Since(*s.lastZero) > defaultInactivityTimeout {
+			log.Debug().Str("lastZero", (*s.lastZero).String()).Msg("inactivity time")
 			s.leaveDueToInactivity()
+			return
 		}
 	}
 }
