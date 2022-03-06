@@ -39,10 +39,15 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 		voice: make(map[discord.GuildID]*session),
 	}
 
+	me, err := s.Me()
+	if err != nil {
+		return nil, err
+	}
+
 	s.AddHandler(func(e *gateway.VoiceStateUpdateEvent) {
 		// Send the update to lavalink
 		chID := snowflake.Snowflake(e.ChannelID.String())
-		l.VoiceStateUpdate(lavalink.VoiceStateUpdate{
+		defer l.VoiceStateUpdate(lavalink.VoiceStateUpdate{
 			GuildID:   snowflake.Snowflake(e.GuildID.String()),
 			ChannelID: &chID,
 			SessionID: e.SessionID,
@@ -61,19 +66,33 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 			return
 		}
 
-		// Count is the number of users in the voice channel who aren't the bot
+		// The channel ID may be null, if this happens then manually retrieve it
+		// from the voice states
+		if e.ChannelID == discord.NullChannelID {
+			for _, st := range states {
+				if st.UserID == me.ID {
+					e.ChannelID = st.ChannelID
+				}
+			}
+		}
+		// If the channel ID is still null then exit
+		if e.ChannelID == discord.NullChannelID {
+			ss.log.Error().Msg("null channel id for voice state update")
+			return
+		}
+
+		// Count is the number of users in the voice channel including the bot
 		count := 0
 		for _, st := range states {
 			if e.ChannelID == st.ChannelID {
 				count += 1
 			}
 		}
-		// Minus one for the bot
-		count -= 1
 
 		ss.log.Debug().Int("guild_count", len(states)).Int("channel_count", count).Msg("voice state update")
 
-		if count <= 0 {
+		// 1 means only the bot is in the channel
+		if count == 1 {
 			now := time.Now()
 			ss.lastZero = &now
 		} else {
