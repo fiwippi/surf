@@ -198,15 +198,19 @@ func (s *session) processVoice() {
 		}
 		if ce.Type != lava.TrackEnd {
 			// If the currently playing track did not exit because it ended,
-			// e.g. because there was an exception or it's stuck, then we need
-			// to leave voice to reset the websocket state
+			// then notify the user
 			s.sendMessage(fmt.Sprintf("Error playing: %s, Reason: `%s`", lava.FmtTrack(t), ce.Reason))
 			s.log.Debug().Str("event_type", ce.Type.String()).Str("reason", ce.Error).Msg("track did not end with lava.TrackEnd")
-			err := s.Leave()
-			if err != nil {
-				s.log.Error().Err(err).Msg("failed to leave voice due invalid track end reason")
+
+			// If the exception is websocket closed then we need to close
+			// the session
+			if ce.Type == lava.WebsocketClosed {
+				err := s.Leave()
+				if err != nil {
+					s.log.Error().Err(err).Msg("failed to leave voice due to websocket closed")
+				}
+				return
 			}
-			return
 		}
 		s.cancelPipe()
 	}
