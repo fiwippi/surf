@@ -2,7 +2,7 @@
 Self-hosted Discord music bot
 
 ## Features
-- Plays YouTube/Soundcloud/Bandcamp/Spotify/Vimeo/HTTP
+- Plays YouTube/Soundcloud/Spotify
 - Queue support:
     - Now Playing
     - Pause
