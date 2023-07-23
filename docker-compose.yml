@@ -2,7 +2,7 @@ version: "3"
 
 services:
   surf:
-    build: .
+    image: "ghcr.io/fiwippi/surf:latest"
     restart: unless-stopped
     env_file:
       - .env

@@ -1,25 +1,21 @@
 package surf
 
 import (
-	"os/exec"
-
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
+	"github.com/rs/zerolog/log"
 
-	"surf/internal/log"
-	"surf/pkg/lava"
 	"surf/pkg/voice"
 )
 
 type client struct {
-	self     *discord.Application
-	state    *state.State
-	manager  *voice.Manager
-	lavalink *exec.Cmd
+	self    *discord.Application
+	state   *state.State
+	manager *voice.Manager
 }
 
-func newClient(token string, conf lava.Config) (*client, error) {
+func newClient(token, spotifyID, spotifySecret string) (*client, error) {
 	// Setup the state
 	id := gateway.DefaultIdentifier("Bot " + token)
 	id.Presence = &gateway.UpdatePresenceCommand{
@@ -30,7 +26,7 @@ func newClient(token string, conf lava.Config) (*client, error) {
 		}},
 	}
 
-	s := state.NewWithIdentifier("", id)
+	s := state.NewWithIdentifier(id)
 	c := &client{
 		state: s,
 	}
@@ -46,8 +42,7 @@ func newClient(token string, conf lava.Config) (*client, error) {
 	c.self = app
 
 	// Create the voice manager
-	conf.AppID = app.ID
-	m, err := voice.NewManager(s, conf)
+	m, err := voice.NewManager(s, spotifyID, spotifySecret)
 	if err != nil {
 		return nil, err
 	}

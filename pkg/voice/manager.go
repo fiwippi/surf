@@ -6,14 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DisgoOrg/disgolink/lavalink"
-	"github.com/DisgoOrg/snowflake"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/voice"
 
-	"surf/pkg/lava"
+	ytdlp "surf/pkg/yt-dlp"
 )
 
 var ErrNotSameVoiceChannel = errors.New("user is not in same voice channel as bot")
@@ -21,21 +19,16 @@ var ErrNotSameVoiceChannel = errors.New("user is not in same voice channel as bo
 type Manager struct {
 	mu    sync.Mutex
 	state *state.State
-	lava  *lava.Lava
+	yt    *ytdlp.Client
 	voice map[discord.GuildID]*session
 }
 
-func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
+func NewManager(s *state.State, spotifyID, spotifySecrets string) (*Manager, error) {
 	voice.AddIntents(s)
 
-	l, err := lava.NewLava(conf)
-	if err != nil {
-		return nil, err
-	}
-
 	m := &Manager{
-		lava:  l,
 		state: s,
+		yt:    ytdlp.NewClient(spotifyID, spotifySecrets),
 		voice: make(map[discord.GuildID]*session),
 	}
 
@@ -45,14 +38,6 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 	}
 
 	s.AddHandler(func(e *gateway.VoiceStateUpdateEvent) {
-		// Send the update to lavalink
-		chID := snowflake.Snowflake(e.ChannelID.String())
-		defer l.VoiceStateUpdate(lavalink.VoiceStateUpdate{
-			GuildID:   snowflake.Snowflake(e.GuildID.String()),
-			ChannelID: &chID,
-			SessionID: e.SessionID,
-		})
-
 		// Update the sessions last timestamp when it had
 		// zero users in the vc if applicable
 		ss, ok := m.voice[e.GuildID]
@@ -98,13 +83,6 @@ func NewManager(s *state.State, conf lava.Config) (*Manager, error) {
 		} else {
 			ss.lastZero = nil
 		}
-	})
-	s.AddHandler(func(e *gateway.VoiceServerUpdateEvent) {
-		l.VoiceServerUpdate(lavalink.VoiceServerUpdate{
-			Token:    e.Token,
-			GuildID:  snowflake.Snowflake(e.GuildID.String()),
-			Endpoint: &e.Endpoint,
-		})
 	})
 
 	return m, nil
@@ -176,7 +154,8 @@ func (m *Manager) Pause(ctx SessionContext) error {
 		return err
 	}
 
-	return s.Pause()
+	s.Pause()
+	return nil
 }
 
 func (m *Manager) Resume(ctx SessionContext) error {
@@ -188,7 +167,8 @@ func (m *Manager) Resume(ctx SessionContext) error {
 		return err
 	}
 
-	return s.Resume()
+	s.Resume()
+	return nil
 }
 
 func (m *Manager) Seek(ctx SessionContext) (time.Duration, error) {
@@ -363,7 +343,7 @@ func (m *Manager) getSession(ctx SessionContext) (*session, error) {
 }
 
 func (m *Manager) createSession(ctx SessionContext) (*session, error) {
-	s, err := newSession(ctx, m.state, m.lava, m)
+	s, err := newSession(m.state, m.yt, m)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +364,7 @@ func (m *Manager) play(ctx SessionContext, next bool) (string, error) {
 	}
 	m.mu.Unlock()
 
-	// Play might block we we unlock the mutex to allow
+	// Play might block, so we unlock the mutex to allow
 	// the session to receive other commands, e.g. leave
 	return s.Play(ctx, next)
 }

@@ -11,10 +11,12 @@ import (
 
 type SessionContext struct {
 	// Guild where the message was sent
-	GID   discord.GuildID
+	GID discord.GuildID
+	// Guild is the name of the guild which the bot is in
 	Guild string
 	// VID is the voice channel the user is in
-	VID   discord.ChannelID
+	VID discord.ChannelID
+	// Voice is the name of the voice channel
 	Voice string
 	// Text channel the message was typed in
 	Text discord.ChannelID

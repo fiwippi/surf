@@ -2,18 +2,23 @@ package surf
 
 import (
 	"fmt"
+	"os"
 	"reflect"
-	"strings"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
-	"surf/internal/log"
 	"surf/internal/pretty"
 	"surf/pkg/voice"
 )
+
+var titleCaser = cases.Title(language.English)
 
 var commands = []api.CreateCommandData{
 	{
@@ -131,12 +136,16 @@ var commands = []api.CreateCommandData{
 }
 
 func init() {
+	// This is the first piece of code that runs, so it contains the logger code
+	zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"})
+
 	c := reflect.ValueOf(&client{})
 	log.Debug().Int("method_num", c.NumMethod()).Msg("reflection of client")
 
 	for _, cmd := range commands {
 		// We get the method for the command we want
-		v := c.MethodByName(strings.Title(cmd.Name))
+		v := c.MethodByName(titleCaser.String(cmd.Name))
 		if !v.IsValid() {
 			log.Fatal().Str("command", cmd.Name).Msg("command does not exist")
 		}
@@ -169,7 +178,7 @@ func interactionCreateEvent(c *client) interface{} {
 		}
 
 		// We get the method for the command we want
-		v := reflect.ValueOf(c).MethodByName(strings.Title(ci.Name))
+		v := reflect.ValueOf(c).MethodByName(titleCaser.String(ci.Name))
 		if !v.IsValid() {
 			log.Error().Str("command", ci.Name).Msg("invalid command received")
 			c.textResp(ctx, "Invalid command", true, false)

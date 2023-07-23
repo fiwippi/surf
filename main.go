@@ -2,15 +2,25 @@ package main
 
 import (
 	"os"
+	"os/exec"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 
-	"surf/internal/log"
-	"surf/pkg/lava"
 	"surf/pkg/surf"
 )
 
+func mustExec(path string) {
+	_, err := exec.LookPath(path)
+	if err != nil {
+		log.Fatal().Err(err).Msg("no " + path + " found")
+	}
+}
+
 func main() {
+	mustExec("yt-dlp")
+	mustExec("ffmpeg")
+
 	godotenv.Load()
 
 	// Discord config
@@ -29,36 +39,8 @@ func main() {
 		log.Warn().Msg("no $SPOTIFY_SECRET given - bot will not support spotify")
 	}
 
-	// Lavalink config
-	lavalinkHost := os.Getenv("LAVALINK_HOST")
-	if lavalinkHost == "" {
-		log.Fatal().Msg("no $LAVALINK_HOST given")
-	}
-	lavalinkPort := os.Getenv("LAVALINK_PORT")
-	if lavalinkPort == "" {
-		log.Fatal().Msg("no $LAVALINK_PORT given")
-	}
-	lavalinkPass := os.Getenv("LAVALINK_PASS")
-	if lavalinkPass == "" {
-		log.Fatal().Msg("no $LAVALINK_PASS given")
-	}
-	lavalinkPath := os.Getenv("LAVALINK_PATH")
-
-	// Ensure Lavalink.jar file exists
-	if lavalinkPath != "" {
-		if _, err := os.Stat(lavalinkPath); os.IsNotExist(err) {
-			log.Fatal().Err(err).Str("path", lavalinkPath).Msg("Lavalink.jar file does not exist")
-		}
-	}
-
-	conf := lava.Config{
-		Host:          lavalinkHost,
-		Port:          lavalinkPort,
-		Pass:          lavalinkPass,
-		SpotifyID:     spotifyID,
-		SpotifySecret: spotifySecret,
-	}
-	if err := surf.Run(token, conf, lavalinkPath); err != nil {
+	// Run surf
+	if err := surf.Run(token, spotifyID, spotifySecret); err != nil {
 		log.Fatal().Err(err).Msg("bot error")
 	}
 }

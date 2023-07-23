@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DisgoOrg/disgolink/lavalink"
+	ytdlp "surf/pkg/yt-dlp"
 )
 
-func testAudioTrack(title string) lavalink.AudioTrack {
-	return lavalink.NewAudioTrack(lavalink.AudioTrackInfo{Title: title})
+func testAudioTrack(title string) *ytdlp.Track {
+	return &ytdlp.Track{Title: title}
 }
 
 func TestMove(t *testing.T) {
-	q := newQueue()
+	q := newQueue(ytdlp.NewClient("", ""))
 	q.l.PushBack(testAudioTrack("fox"))
 	q.l.PushBack(testAudioTrack("yak"))
 	q.l.PushBack(testAudioTrack("emu"))
@@ -28,7 +28,7 @@ func TestMove(t *testing.T) {
 	if e == nil {
 		t.Error("front of queue is nil")
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "koi" {
+	if e.Value.(*ytdlp.Track).Title != "koi" {
 		t.Error("front of queue is not 'koi'")
 	}
 
@@ -41,7 +41,7 @@ func TestMove(t *testing.T) {
 	if e == nil {
 		t.Error("back of queue is nil")
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "koi" {
+	if e.Value.(*ytdlp.Track).Title != "koi" {
 		t.Error("back of queue is not 'koi'")
 	}
 
@@ -54,13 +54,13 @@ func TestMove(t *testing.T) {
 	if err != nil || e == nil {
 		t.Error("error or back of queue is nil:", err)
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "koi" {
+	if e.Value.(*ytdlp.Track).Title != "koi" {
 		t.Error("second element is not 'koi'")
 	}
 }
 
 func TestShuffle(t *testing.T) {
-	q := newQueue()
+	q := newQueue(ytdlp.NewClient("", ""))
 	q.l.PushBack(testAudioTrack("fox"))
 	q.l.PushBack(testAudioTrack("yak"))
 	q.l.PushBack(testAudioTrack("emu"))
@@ -71,7 +71,7 @@ func TestShuffle(t *testing.T) {
 	fmt.Println("Before (shuffle):")
 	count := 1
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		fmt.Printf("%d. %s\n", count, e.Value.(lavalink.AudioTrack).Info().Title)
+		fmt.Printf("%d. %s\n", count, e.Value.(*ytdlp.Track).Title)
 		count++
 	}
 
@@ -82,13 +82,13 @@ func TestShuffle(t *testing.T) {
 	fmt.Println("After (shuffle):")
 	count = 1
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		fmt.Printf("%d. %s\n", count, e.Value.(lavalink.AudioTrack).Info().Title)
+		fmt.Printf("%d. %s\n", count, e.Value.(*ytdlp.Track).Title)
 		count++
 	}
 }
 
 func TestRemove(t *testing.T) {
-	q := newQueue()
+	q := newQueue(ytdlp.NewClient("", ""))
 	q.l.PushBack(testAudioTrack("fox"))
 	q.l.PushBack(testAudioTrack("yak"))
 	q.l.PushBack(testAudioTrack("emu"))
@@ -104,7 +104,7 @@ func TestRemove(t *testing.T) {
 	if e == nil {
 		t.Error("front of queue is nil")
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "yak" {
+	if e.Value.(*ytdlp.Track).Title != "yak" {
 		t.Error("front of queue is not 'yak'")
 	}
 
@@ -117,8 +117,8 @@ func TestRemove(t *testing.T) {
 	if e == nil {
 		t.Error("back of queue is nil")
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "jay" {
-		t.Error("back of queue is not 'jay':", e.Value.(lavalink.AudioTrack).Info().Title)
+	if e.Value.(*ytdlp.Track).Title != "jay" {
+		t.Error("back of queue is not 'jay':", e.Value.(*ytdlp.Track).Title)
 	}
 
 	// Remove from middle
@@ -130,7 +130,7 @@ func TestRemove(t *testing.T) {
 	if err != nil || e == nil {
 		t.Error("error or back of queue is nil:", err)
 	}
-	if r[0].Info().Title != "emu" {
+	if r[0].Title != "emu" {
 		t.Error("removed track is not 'emu'")
 	}
 
@@ -143,7 +143,7 @@ func TestRemove(t *testing.T) {
 	fmt.Println("Before (remove):")
 	count := 1
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		fmt.Printf("%d. %s\n", count, e.Value.(lavalink.AudioTrack).Info().Title)
+		fmt.Printf("%d. %s\n", count, e.Value.(*ytdlp.Track).Title)
 		count++
 	}
 	r, err = q.Remove(2, 4)
@@ -153,7 +153,7 @@ func TestRemove(t *testing.T) {
 	fmt.Println("After (remove 1):")
 	count = 1
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		fmt.Printf("%d. %s\n", count, e.Value.(lavalink.AudioTrack).Info().Title)
+		fmt.Printf("%d. %s\n", count, e.Value.(*ytdlp.Track).Title)
 		count++
 	}
 
@@ -161,7 +161,7 @@ func TestRemove(t *testing.T) {
 	if err != nil || e == nil {
 		t.Error("error or front of queue is nil:", err)
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "yak" {
+	if e.Value.(*ytdlp.Track).Title != "yak" {
 		t.Error("front of queue is not 'yak'")
 	}
 
@@ -169,7 +169,7 @@ func TestRemove(t *testing.T) {
 	if err != nil || e == nil {
 		t.Error("error or middle of queue is nil:", err)
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "jay" {
+	if e.Value.(*ytdlp.Track).Title != "jay" {
 		t.Error("middle of queue is not 'jay'")
 	}
 
@@ -177,20 +177,20 @@ func TestRemove(t *testing.T) {
 	if err != nil || e == nil {
 		t.Error("error or back of queue is nil:", err)
 	}
-	if e.Value.(lavalink.AudioTrack).Info().Title != "rabbit" {
+	if e.Value.(*ytdlp.Track).Title != "rabbit" {
 		t.Error("back of queue is not 'rabbit'")
 	}
 
 	if len(r) != 3 {
 		t.Error("did not remove 3 elements:", len(r))
 	}
-	if r[0].Info().Title != "cat" {
+	if r[0].Title != "cat" {
 		t.Error("did not remove 'cat' from queue")
 	}
-	if r[1].Info().Title != "dog" {
+	if r[1].Title != "dog" {
 		t.Error("did not remove 'dog' from queue")
 	}
-	if r[2].Info().Title != "horse" {
+	if r[2].Title != "horse" {
 		t.Error("did not remove 'horse' from queue")
 	}
 
@@ -202,7 +202,7 @@ func TestRemove(t *testing.T) {
 	fmt.Println("After (remove 2):")
 	count = 1
 	for e := q.l.Front(); e != nil; e = e.Next() {
-		fmt.Printf("%d. %s\n", count, e.Value.(lavalink.AudioTrack).Info().Title)
+		fmt.Printf("%d. %s\n", count, e.Value.(*ytdlp.Track).Title)
 		count++
 	}
 	if q.Len() != 0 {
@@ -211,13 +211,13 @@ func TestRemove(t *testing.T) {
 	if len(r) != 3 {
 		t.Error("did not remove 3 elements:", len(r))
 	}
-	if r[0].Info().Title != "yak" {
+	if r[0].Title != "yak" {
 		t.Error("did not remove 'yak' from queue")
 	}
-	if r[1].Info().Title != "jay" {
+	if r[1].Title != "jay" {
 		t.Error("did not remove 'jay' from queue")
 	}
-	if r[2].Info().Title != "rabbit" {
+	if r[2].Title != "rabbit" {
 		t.Error("did not remove 'rabbit' from queue")
 	}
 }

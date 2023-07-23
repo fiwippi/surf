@@ -2,43 +2,23 @@ package surf
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
-	"surf/internal/log"
-	"surf/pkg/lava"
+	"github.com/rs/zerolog/log"
 )
 
-func Run(token string, conf lava.Config, lavalinkPath string) error {
-	// Context for running the bot
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
-	defer cancel()
-
-	// Run Lavalink if needed
-	if lavalinkPath != "" {
-		lavalinkCmd := exec.Command("java", "-Djdk.tls.client.protocols=TLSv1.1,TLSv1.2", "-Xmx4G", "-jar", lavalinkPath)
-		log.Info().Str("host", conf.Host).Str("port", conf.Port).Msg("connecting to lavalink...")
-		if err := lavalinkCmd.Start(); err != nil {
-			return fmt.Errorf("failed to start lavalink: %s", err)
-		}
-
-		go func() {
-			err := lavalinkCmd.Wait()
-			if err != nil {
-				log.Error().Err(err).Msg("lavalink closed with error")
-			}
-			cancel()
-		}()
-	}
-
+func Run(token, spotifyID, spotifySecret string) error {
 	// Create the client
-	c, err := newClient(token, conf)
+	c, err := newClient(token, spotifyID, spotifySecret)
 	if err != nil {
 		return err
 	}
+
+	// Context for running the bot
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
+	defer cancel()
 
 	// Run the bot
 	if err := c.state.Open(ctx); err != nil {
