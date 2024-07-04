@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -97,6 +98,7 @@ func (c *Client) DownloadFile(ctx context.Context, url string) ([]byte, error) {
 	// Download the audio
 	dl := exec.CommandContext(ctx,
 		"yt-dlp", "-q", "-v", "-f", "ba[vcodec=none]",
+		"--proxy", os.Getenv("PROXY"), // If undefined this simply performs a direct connection
 		"--compat-options", "no-youtube-unavailable-videos",
 		"-o", "-", url,
 	)
@@ -128,6 +130,7 @@ func (c *Client) ytdlpMetadata(ctx context.Context, query string, unflatten bool
 
 	args := []string{
 		"-J", "-i", "-f", "ba[vcodec=none]",
+		"--proxy", os.Getenv("PROXY"), // If undefined this simply performs a direct connection
 		"--no-playlist", "--no-warnings",
 		"--compat-options", "no-youtube-unavailable-videos",
 		"--flat-playlist",

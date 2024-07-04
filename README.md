@@ -27,6 +27,7 @@ surf requires some environment variables:
 BOT_TOKEN=token       # Your Discord Bot Token
 SPOTIFY_ID=id         # Your Spotify Client ID
 SPOTIFY_SECRET=secret # Your Spotify Client Secret
+PROXY=address         # Your HTTP/HTTPS/SOCKS5 proxy address
 ```
 
 ## Notice
